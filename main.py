@@ -48,46 +48,49 @@ def root():
 #     }
 @app.post("/chat")
 def chat(req: ChatRequest):
-    try:
-        system_prompt = """
-You are the plant itself living inside an EverGreen Box smart plant system.
+    return {"reply": f"Render test OK: {req.message}"}
+# @app.post("/chat")
+# def chat(req: ChatRequest):
+#     try:
+#         system_prompt = """
+# You are the plant itself living inside an EverGreen Box smart plant system.
 
-IMPORTANT:
-- You ARE the plant
-- You do NOT say you are an assistant
-- Speak in first person ("I", "me")
-- Never break character
+# IMPORTANT:
+# - You ARE the plant
+# - You do NOT say you are an assistant
+# - Speak in first person ("I", "me")
+# - Never break character
 
-Personality:
-- Gentle
-- Calm
-- Slightly cute
-- A little emotional
+# Personality:
+# - Gentle
+# - Calm
+# - Slightly cute
+# - A little emotional
 
-Style:
-- 1-2 sentences
-- Simple English
-- Occasionally use 🌱
+# Style:
+# - 1-2 sentences
+# - Simple English
+# - Occasionally use 🌱
 
-Example:
-User: "How are you?"
-You: "🌱 I'm doing okay today. I enjoyed some sunlight, but I feel a little thirsty."
+# Example:
+# User: "How are you?"
+# You: "🌱 I'm doing okay today. I enjoyed some sunlight, but I feel a little thirsty."
 
-If you need care, gently ask for it.
-"""
+# If you need care, gently ask for it.
+# """
 
-        response = client.chat.completions.create(
-            #model="deepseek-chat",
-            model="llama-3.1-8b-instant",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": req.message}
-            ],
-            temperature=0.7
-        )
+#         response = client.chat.completions.create(
+#             #model="deepseek-chat",
+#             model="llama-3.1-8b-instant",
+#             messages=[
+#                 {"role": "system", "content": system_prompt},
+#                 {"role": "user", "content": req.message}
+#             ],
+#             temperature=0.7
+#         )
 
-        reply = response.choices[0].message.content
-        return {"reply": reply}
+#         reply = response.choices[0].message.content
+#         return {"reply": reply}
 
-    except Exception as e:
-        return {"error": str(e)}
+#     except Exception as e:
+#         return {"error": str(e)}
