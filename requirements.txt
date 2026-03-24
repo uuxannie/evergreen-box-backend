@@ -1,4 +1,4 @@
 fastapi
-uvicorn
-openai
+uvicorn[standard]
+groq
 python-dotenv
