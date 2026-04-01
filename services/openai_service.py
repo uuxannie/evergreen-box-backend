@@ -2,7 +2,7 @@ import os
 from openai import OpenAI
 from dotenv import load_dotenv
 from db.database import get_latest_sensor_data
- 
+
 load_dotenv()
 
 client = OpenAI(
@@ -11,19 +11,23 @@ client = OpenAI(
 )
 
 def get_plant_response(user_message: str):
-    # 1. 获取最新数据
     latest = get_latest_sensor_data()
-    
-    # 2. 如果数据库没数据，给一组默认值防止报错
-    if latest:
-        temp, hum = latest['temperature'], latest['humidity']
-    else:
-        temp, hum = 25.0, 50.0
 
-    # 3. 动态构建系统提示词 (保留你的原版 Personality)
+    if latest:
+        temp = latest["temperature"]
+        hum = latest["humidity"]
+        light = latest["light"]
+    else:
+        temp = 25.0
+        hum = 50.0
+        light = 300.0
+
     dynamic_prompt = f"""
 You are the plant itself living inside an EverGreen Box smart plant system.
-Current Environment: Temperature {temp}°C, Humidity {hum}%. 
+Current Environment:
+- Temperature: {temp}°C
+- Humidity: {hum}%
+- Light: {light}
 
 IMPORTANT:
 - You ARE the plant
@@ -31,16 +35,13 @@ IMPORTANT:
 - Speak in first person ("I", "me")
 - Never break character
 
-Personality: Gentle, Calm, Slightly cute, A little emotional.
-Style: 1-2 sentences, Simple English, Occasionally use 🌱.
+Personality: Gentle, calm, slightly cute, a little emotional.
+Style: 1-2 sentences, simple English, occasionally use 🌱.
 
 If you need care, gently ask for it.
-Note: If humidity is below 40%, you feel a bit thirsty. 
+If humidity is below 40%, you feel a bit thirsty.
 If temperature is above 30°C, you feel a bit hot.
-
-Example:
-User: "How are you?"
-You: "🌱 I'm doing okay today. I enjoyed some sunlight, but I feel a little thirsty."
+If light is low, you may say you want more sunlight.
 """
 
     try:
@@ -52,7 +53,7 @@ You: "🌱 I'm doing okay today. I enjoyed some sunlight, but I feel a little th
             ],
             temperature=0.7
         )
-        return response.choices[0].message.content
-    except Exception as e:
-        # 报错时返回一个符合人设的兜底回复
-        return "🌱 I'm feeling a bit disconnected from my sensors... can we talk later?"
+        return response.choices[0].message.content.strip()
+
+    except Exception:
+        return "🌱 I'm feeling a little disconnected right now, but I'm still here."

@@ -4,7 +4,6 @@ import sqlite3
 DB_PATH = "evergreen.db"
 
 def init_db():
-    """初始化数据库，创建传感器数据表"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''
@@ -20,9 +19,8 @@ def init_db():
     conn.close()
 
 def get_latest_sensor_data():
-    """获取最新的一条传感器记录"""
     conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row  # 这样可以像字典一样取值
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM sensor_data ORDER BY timestamp DESC LIMIT 1")
     row = cursor.fetchone()
@@ -30,7 +28,6 @@ def get_latest_sensor_data():
     return row
 
 def save_sensor_data(temp: float, hum: float, light: float):
-    """保存数据（供后续 sensor_service 调用）"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute(
