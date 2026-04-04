@@ -1,6 +1,11 @@
 from datetime import datetime
 import sqlite3
+import os\
 
+# get absolute path of the database file, ensure it's always correct regardless of where the script is run
+#BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# make sure the database file is created in the parent directory of the current file (to avoid issues with relative paths)
+#DB_PATH = os.path.join(BASE_DIR, "..", "evergreen.db")
 DB_PATH = "evergreen.db"
 
 def init_db():
@@ -19,17 +24,29 @@ def init_db():
     ''')
 
     # 2. plant presets db
-    cursor.execute('''CREATE TABLE IF NOT EXISTS plant_presets (
-        plant_name TEXT PRIMARY KEY,
-        min_temp REAL, max_temp REAL,
-        min_hum REAL, max_hum REAL,
-        min_moist REAL)''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS plant_presets (
+            plant_name TEXT PRIMARY KEY,
+            min_temp REAL, max_temp REAL,
+            min_hum REAL, max_hum REAL,
+            min_moist REAL)''')
 
     # 3. device logs db
-    cursor.execute('''CREATE TABLE IF NOT EXISTS device_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        action_type TEXT, -- 'WATERING' 或 'VENTILATION'
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS device_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            action_type TEXT, -- 'WATERING' or 'VENTILATION'
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+    
+    # 4. camera snapshots db
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS camera_images (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            image_url TEXT NOT NULL,
+            storage_type TEXT,
+            captured_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            yolo_result TEXT,
+            note TEXT)''')
     conn.commit()
     conn.close()
 
