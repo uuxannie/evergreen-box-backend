@@ -3,8 +3,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from routers import ai
 from db.database import init_db
 from routers import sensor
+from contextlib import asynccontextmanager
 
-app = FastAPI(title="EverGreen Box API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    print("Database initialized.")
+    yield  # this is where the app runs
+    # execute shutdown code here if needed
+    print("Server is shutting down...")
+
+app = FastAPI(title="EverGreen Box API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -15,13 +24,7 @@ app.add_middleware(
 )
 
 app.include_router(ai.router, prefix="/api", tags=["AI"])
-
 app.include_router(sensor.router, prefix="/api/sensor", tags=["Sensor"])
-
-@app.on_event("startup")
-def startup_event():
-    init_db()
-    print("Database initialized.")
 
 @app.get("/")
 def root():
