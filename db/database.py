@@ -6,6 +6,7 @@ DB_PATH = "evergreen.db"
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
+    # 1. sensor db
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS sensor_data (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -16,6 +17,19 @@ def init_db():
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+
+    # 2. plant presets db
+    cursor.execute('''CREATE TABLE IF NOT EXISTS plant_presets (
+        plant_name TEXT PRIMARY KEY,
+        min_temp REAL, max_temp REAL,
+        min_hum REAL, max_hum REAL,
+        min_moist REAL)''')
+
+    # 3. device logs db
+    cursor.execute('''CREATE TABLE IF NOT EXISTS device_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        action_type TEXT, -- 'WATERING' 或 'VENTILATION'
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
     conn.commit()
     conn.close()
 
@@ -37,3 +51,12 @@ def save_sensor_data(temp: float, hum: float, light: float, moist: float):
     )
     conn.commit()
     conn.close()
+
+def get_action_counts():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    # record today's watering count
+    cursor.execute("SELECT COUNT(*) FROM device_logs WHERE action_type='WATERING' AND date(timestamp) = date('now')")
+    count = cursor.fetchone()[0]
+    conn.close()
+    return count
