@@ -12,6 +12,7 @@ def init_db():
             temperature REAL,
             humidity REAL,
             light REAL,
+            moisture REAL,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ''')
@@ -27,12 +28,12 @@ def get_latest_sensor_data():
     conn.close()
     return row
 
-def save_sensor_data(temp: float, hum: float, light: float):
+def save_sensor_data(temp: float, hum: float, light: float, moist: float):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO sensor_data (temperature, humidity, light) VALUES (?, ?, ?)",
-        (temp, hum, light)
+        "INSERT INTO sensor_data (temperature, humidity, light, moisture) VALUES (?, ?, ?, ?)",
+        (temp, hum, light, moist)
     )
     conn.commit()
     conn.close()
