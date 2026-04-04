@@ -8,10 +8,11 @@ class SensorDataRequest(BaseModel):
     temperature: float
     humidity: float
     light: float
+    moisture: float
 
 @router.post("/upload")
 async def upload_sensor_data(data: SensorDataRequest):
-    save_sensor_data(data.temperature, data.humidity, data.light)
+    save_sensor_data(data.temperature, data.humidity, data.light, data.moisture)
     return {"message": "Sensor data saved successfully."}
 
 @router.get("/latest")
