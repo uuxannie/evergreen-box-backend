@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from db.database import save_sensor_data, get_latest_sensor_data
+from db.database import save_sensor_data, get_latest_sensor_data, get_history_data
 
 router = APIRouter()
 
@@ -24,5 +24,23 @@ async def latest_sensor_data():
         "temperature": row["temperature"],
         "humidity": row["humidity"],
         "light": row["light"],
+        "moisture": row["moisture"],
         "timestamp": row["timestamp"]
     }
+
+@router.get("/history")
+async def get_sensor_history():
+    rows = get_history_data()
+    if not rows:
+        return []
+    
+    history = []
+    for row in rows:
+        history.append({
+            "temperature": row["temperature"],
+            "humidity": row["humidity"],
+            "light": row["light"],
+            "moisture": row["moisture"],
+            "timestamp": row["timestamp"]
+        })
+    return history

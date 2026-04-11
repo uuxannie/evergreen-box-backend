@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from routers import ai
 from db.database import init_db
 from routers import sensor
+from routers import device
 from contextlib import asynccontextmanager
 
 @asynccontextmanager
@@ -25,6 +26,7 @@ app.add_middleware(
 
 app.include_router(ai.router, prefix="/api", tags=["AI"])
 app.include_router(sensor.router, prefix="/api/sensor", tags=["Sensor"])
+app.include_router(device.router, prefix="/api/device", tags=["Device"])
 
 @app.get("/")
 def root():
