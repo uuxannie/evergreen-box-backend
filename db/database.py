@@ -152,3 +152,34 @@ def get_today_device_stats() -> dict:
             stats[target_name] = row["count"]
             
     return stats
+
+def save_camera_image(image_url: str, storage_type: str = "local"):
+    """saves a new camera image record to the database"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO camera_images (image_url, storage_type) VALUES (?, ?)",
+            (image_url, storage_type)
+        )
+        conn.commit()
+    except sqlite3.Error as e:
+        print(f"Database error while saving image: {e}")
+        raise
+    finally:
+        conn.close()
+
+def get_latest_camera_image():
+    """fetches the latest camera image record from the database"""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT * FROM camera_images ORDER BY captured_at DESC LIMIT 1")
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error while fetching latest image: {e}")
+        return None
+    finally:
+        conn.close()

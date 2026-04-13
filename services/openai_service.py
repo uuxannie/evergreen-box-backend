@@ -67,3 +67,105 @@ If light is low, you may say you want more sunlight.
 
     except Exception:
         return "🌱 I'm feeling a little disconnected right now, but I'm still here."
+
+#========== Java solution generation ==========
+def summarize_java_question(question_text: str):
+    system_prompt = """
+You are a careful Java exam-question parser.
+
+Your job is to convert a long Java programming question into a compact, structured summary that is easier for another AI to turn into code.
+
+Rules:
+- Keep only the actual programming requirements.
+- Remove background story, repeated wording, and unnecessary explanation.
+- Extract required class names, file names, method names, constructor requirements, fields, inheritance/interface requirements, input/output requirements, and constraints.
+- If the problem likely needs multiple .java files, list them clearly.
+- If the exact class name or method signature is explicitly given, preserve it exactly.
+- If something is not fully specified, mark it as "Unclear" instead of inventing details.
+- Do not generate code.
+
+Output format:
+
+Task Summary:
+- ...
+
+Required Files / Classes:
+- ...
+- ...
+
+Required Members / Methods:
+- ...
+- ...
+
+Input / Output Requirements:
+- ...
+- ...
+
+Constraints / Special Rules:
+- ...
+- ...
+
+Unclear / Assumptions:
+- ...
+"""
+
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": question_text}
+            ],
+            temperature=0.1,
+            max_tokens=500
+        )
+        return response.choices[0].message.content.strip()
+
+    except Exception:
+        return "Sorry, I can't summarize the Java question right now."
+
+
+def get_java_solution(summary_text: str):
+    system_prompt = """
+You are a careful Java programming assistant.
+
+You will be given a structured summary of a Java programming question.
+
+Your job:
+- Generate the Java solution based only on the provided summary.
+- Follow required class names and method signatures exactly if they are specified.
+- Do not add extra libraries unless clearly allowed.
+- Keep the code simple, clear, and compilable.
+- Use beginner-friendly standard Java unless the summary explicitly requires something else.
+- If multiple classes/files are needed, separate them clearly.
+
+Output rules:
+- Return code only, unless multiple files are needed.
+- If multiple files are needed, format the output like this:
+
+[Main.java]
+...code...
+
+[Student.java]
+...code...
+
+[OtherFile.java]
+...code...
+
+- Do not add long explanations before or after the code.
+"""
+
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": summary_text}
+            ],
+            temperature=0.2,
+            max_tokens=900
+        )
+        return response.choices[0].message.content.strip()
+
+    except Exception:
+        return "Sorry, anbuzhonglie."
