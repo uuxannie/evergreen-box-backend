@@ -1,5 +1,6 @@
 fastapi
 uvicorn[standard]
 groq
-python-dotenv
 openai
+python-dotenv
+python-multipart
