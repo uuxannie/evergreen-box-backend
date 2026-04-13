@@ -1,10 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+
 from routers import ai
 from db.database import init_db
 from routers import sensor
 from routers import device
 from routers import camera
+from routers.camera import UPLOAD_DIR
 from contextlib import asynccontextmanager
 
 @asynccontextmanager
@@ -24,6 +27,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.mount("/static/images", StaticFiles(directory=UPLOAD_DIR), name="static_images")
 
 app.include_router(ai.router, prefix="/api", tags=["AI"])
 app.include_router(sensor.router, prefix="/api/sensor", tags=["Sensor"])
