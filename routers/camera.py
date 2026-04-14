@@ -1,7 +1,7 @@
 import os
 import shutil
 from datetime import datetime
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from db.database import save_camera_image, get_latest_camera_image
 
 router = APIRouter()
@@ -23,7 +23,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 @router.post("/upload")
-async def upload_image(file: UploadFile = File(...)):
+async def upload_image(file: UploadFile = File(...), yolo_result: str = Form(None)):
     try:
         # Generate a unique filename using the current timestamp, such as "20260411_103000.jpg"
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -47,7 +47,7 @@ async def upload_image(file: UploadFile = File(...)):
         storage_type = "render_disk" if os.path.exists(RENDER_DISK_BASE) else "local"
 
         # Write to database
-        save_camera_image(image_url=image_url, storage_type=storage_type)
+        save_camera_image(image_url=image_url, storage_type=storage_type, yolo_result=yolo_result)
 
         return {
             "status": "success",
