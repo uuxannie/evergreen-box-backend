@@ -178,14 +178,14 @@ def get_today_device_stats() -> dict:
             
     return stats
 
-def save_camera_image(image_url: str, storage_type: str = "local"):
-    """saves a new camera image record to the database"""
+def save_camera_image(image_url: str, storage_type: str = "local", yolo_result: str = None):
+    """Saves a new camera image record including YOLO analysis results"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     try:
         cursor.execute(
-            "INSERT INTO camera_images (image_url, storage_type) VALUES (?, ?)",
-            (image_url, storage_type)
+            "INSERT INTO camera_images (image_url, storage_type, yolo_result) VALUES (?, ?, ?)",
+            (image_url, storage_type, yolo_result)
         )
         conn.commit()
     except sqlite3.Error as e:
