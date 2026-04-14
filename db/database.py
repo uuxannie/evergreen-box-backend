@@ -2,7 +2,19 @@ import sqlite3
 import os
 from datetime import datetime, date
 
-DB_PATH = "evergreen.db"
+RENDER_DISK_BASE = "/var/lib/data"
+
+# dinamically set the database path
+if os.path.exists(RENDER_DISK_BASE):
+    DB_PATH = os.path.join(RENDER_DISK_BASE, "evergreen.db")
+else:
+    DB_PATH = "evergreen.db"
+    
+# dinamically set image Storage Path)
+if os.path.exists(RENDER_DISK_BASE):
+    IMAGE_DIR = os.path.join(RENDER_DISK_BASE, "images")
+else:
+    IMAGE_DIR = "static/images"
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
@@ -52,6 +64,19 @@ def init_db():
         )
     ''')
     
+    # 5. device_state table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS device_state (
+            target TEXT PRIMARY KEY,
+            action TEXT NOT NULL
+        )
+    ''')
+    # Insert the initial states of the three devices, using INSERT OR IGNORE to prevent the existing states from being overwritten on each reboot.
+    cursor.executemany('''
+        INSERT OR IGNORE INTO device_state (target, action)
+        VALUES (?, ?)
+    ''', [("water_pump", "off"), ("fan", "off"), ("grow_light", "off")])
+
     conn.commit()
     conn.close()
 
@@ -183,3 +208,23 @@ def get_latest_camera_image():
         return None
     finally:
         conn.close()
+
+def update_state_in_db(target: str, action: str):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE device_state 
+        SET action = ? 
+        WHERE target = ?
+    ''', (action, target))
+    conn.commit()
+    conn.close()
+
+def get_state_from_db() -> dict:
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT target, action FROM device_state")
+    rows = cursor.fetchall()
+    conn.close()
+    # Convert [(water_pump, off), (fan, on)] into a dictionary and return it.
+    return {row[0]: row[1] for row in rows}
