@@ -28,7 +28,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/var/lib/data/images", StaticFiles(directory=UPLOAD_DIR), name="static_images")
+UPLOAD_DIR = "/var/lib/data/images"
+app.mount("/static", StaticFiles(directory="/var/lib/data"), name="static")
+# app.mount("/static/images", StaticFiles(directory=UPLOAD_DIR), name="static_images")
 
 app.include_router(ai.router, prefix="/api", tags=["AI"])
 app.include_router(sensor.router, prefix="/api/sensor", tags=["Sensor"])
