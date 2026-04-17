@@ -99,10 +99,6 @@ async def device_stats() -> DeviceStatsResponse:
             detail="Failed to retrieve device statistics."
         )
 
-class DeviceStateUpdate(BaseModel):
-    target: Literal["water_pump", "fan", "grow_light"]
-    action: Literal["on", "off"]
-
 @router.post("/set_state", response_model=CommandResponse, status_code=status.HTTP_200_OK)
 async def set_device_state(command: DeviceCommand) -> CommandResponse:
     """
