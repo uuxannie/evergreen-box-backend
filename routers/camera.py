@@ -1,9 +1,11 @@
 import os
 import shutil
+import glob
 import logging
 from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from db.database import save_camera_image, get_latest_camera_image
+from services.timelapse_service import enforce_image_cap, generate_timelapse_video
 
 # Configure logging
 logging.basicConfig(
@@ -52,6 +54,9 @@ async def upload_image(
             os.makedirs(UPLOAD_DIR, exist_ok=True)
             logger.info(f"[CAMERA] Created missing directory: {UPLOAD_DIR}")
 
+        # Enforce the 500 image hard cap before saving new image
+        enforce_image_cap()
+
         # Generate unique filename with millisecond precision to prevent collisions
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:19]
         extension = file.filename.split(".")[-1] if "." in file.filename else "jpg"
@@ -73,13 +78,18 @@ async def upload_image(
             yolo_result=yolo_result
         )
 
-        logger.info(f"[CAMERA] Image uploaded successfully: {filename} ({storage_type})")
+        # Count current images in directory
+        image_count = len(glob.glob(os.path.join(UPLOAD_DIR, "*.jpg")))
+        image_count += len(glob.glob(os.path.join(UPLOAD_DIR, "*.jpeg")))
+
+        logger.info(f"[CAMERA] Image uploaded successfully: {filename} ({storage_type}). Total: {image_count}/500")
         
         return {
             "status": "success",
             "image_url": image_url,
             "filename": filename,
-            "storage_type": storage_type
+            "storage_type": storage_type,
+            "image_count": image_count
         }
 
     except Exception as e:
@@ -138,3 +148,36 @@ async def get_latest_image():
             status_code=500,
             detail="Failed to retrieve the latest image."
         )
+
+@router.post("/generate-demo-video")
+async def generate_demo_video():
+    """
+    Manually trigger timelapse video generation from all available images.
+    For demo mode, compiles all images (capped at 500) into a 30 FPS MP4.
+    
+    Returns:
+    - success: Boolean indicating whether generation succeeded
+    - video_path: Full path to the generated video file
+    - video_url: Relative URL to access the video via /static/videos
+    - frame_count: Number of frames compiled into the video
+    - skipped_frames: Number of images that could not be read
+    - file_size_mb: Size of the generated video in megabytes
+    - error: Error message if generation failed
+    """
+    try:
+        logger.info("[CAMERA] Demo video generation requested...")
+        result = generate_timelapse_video()
+        
+        if result["success"]:
+            logger.info(f"[CAMERA] Demo video generated successfully: {result['video_path']}")
+            return result
+        else:
+            logger.warning(f"[CAMERA] Demo video generation failed: {result['error']}")
+            return result
+            
+    except Exception as e:
+        logger.error(f"[CAMERA] Error during video generation: {str(e)}", exc_info=True)
+        return {
+            "success": False,
+            "error": f"Video generation failed: {str(e)}"
+        }

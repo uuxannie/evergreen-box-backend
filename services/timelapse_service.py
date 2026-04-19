@@ -1,7 +1,7 @@
 import os
 import time
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 import cv2
 import glob
 from pathlib import Path
@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 # Define base paths with support for Render persistent disk
 RENDER_DISK_BASE = "/var/lib/data"
+MAX_IMAGES = 500  # Hard cap for demo version
 
 def get_storage_paths():
     """
@@ -41,73 +42,56 @@ def get_storage_paths():
 
 IMAGE_DIR, VIDEO_DIR, STORAGE_TYPE = get_storage_paths()
 
-def clean_old_files():
+def enforce_image_cap():
     """
-    Delete old files based on retention policies:
-    - Images older than 7 days
-    - Videos older than 30 days
+    Enforce hard cap on image count (500 images max).
+    If the limit is exceeded, delete the oldest images (FIFO) until count is at MAX_IMAGES - 1.
     
-    This function is designed to be called by APScheduler daily.
+    This function should be called BEFORE saving a new image.
     """
     try:
-        current_time = time.time()
-        
-        # Calculate retention thresholds in seconds
-        image_retention_seconds = 7 * 24 * 60 * 60  # 7 days
-        video_retention_seconds = 30 * 24 * 60 * 60  # 30 days
-        
-        # Clean old images
-        deleted_images = 0
+        # Collect all image files
         image_files = glob.glob(os.path.join(IMAGE_DIR, "*.jpg"))
         image_files.extend(glob.glob(os.path.join(IMAGE_DIR, "*.jpeg")))
         
-        for img_path in image_files:
-            try:
-                if os.stat(img_path).st_mtime < current_time - image_retention_seconds:
+        current_count = len(image_files)
+        
+        if current_count >= MAX_IMAGES:
+            logger.info(f"[CAP_ENFORCEMENT] Image count ({current_count}) reached limit. Deleting oldest images...")
+            
+            # Sort by modification time to get oldest first
+            image_files.sort(key=lambda x: os.path.getmtime(x))
+            
+            # Delete until we have MAX_IMAGES - 1 remaining
+            images_to_delete = current_count - (MAX_IMAGES - 1)
+            deleted_count = 0
+            
+            for img_path in image_files[:images_to_delete]:
+                try:
                     os.remove(img_path)
-                    deleted_images += 1
-                    logger.info(f"[CLEANUP] Deleted old image: {os.path.basename(img_path)}")
-            except OSError as e:
-                logger.warning(f"[CLEANUP] Failed to delete image {img_path}: {e}")
-        
-        # Clean old videos
-        deleted_videos = 0
-        video_files = glob.glob(os.path.join(VIDEO_DIR, "*.mp4"))
-        
-        for vid_path in video_files:
-            try:
-                if os.stat(vid_path).st_mtime < current_time - video_retention_seconds:
-                    os.remove(vid_path)
-                    deleted_videos += 1
-                    logger.info(f"[CLEANUP] Deleted old video: {os.path.basename(vid_path)}")
-            except OSError as e:
-                logger.warning(f"[CLEANUP] Failed to delete video {vid_path}: {e}")
-        
-        logger.info(f"[CLEANUP] Task completed: {deleted_images} images, {deleted_videos} videos deleted.")
-        return {"images_deleted": deleted_images, "videos_deleted": deleted_videos}
-        
+                    deleted_count += 1
+                    logger.info(f"[CAP_ENFORCEMENT] Deleted oldest image: {os.path.basename(img_path)}")
+                except OSError as e:
+                    logger.warning(f"[CAP_ENFORCEMENT] Failed to delete {img_path}: {e}")
+            
+            logger.info(f"[CAP_ENFORCEMENT] Freed space by deleting {deleted_count} images.")
+    
     except Exception as e:
-        logger.error(f"[CLEANUP] Error during cleanup task: {e}", exc_info=True)
-        return {"error": str(e)}
+        logger.error(f"[CAP_ENFORCEMENT] Error enforcing image cap: {e}", exc_info=True)
 
 def generate_timelapse_video():
     """
-    Generate an MP4 timelapse video from images captured in the last 3 days.
+    Generate an MP4 timelapse video from all available images in the directory.
     
-    - Reads JPEG images from IMAGE_DIR
-    - Sorts them chronologically
-    - Compiles into H.264 MP4 (30 FPS)
-    - Handles edge cases gracefully (no images, unreadable images, etc.)
+    For demo mode, this reads all currently stored images (capped at 500),
+    sorts them chronologically, and compiles them into an H.264 MP4 (30 FPS).
     
     Returns:
         dict: {"success": True, "video_path": "...", "frame_count": N} or 
               {"success": False, "error": "..."}
     """
     try:
-        current_time = time.time()
-        three_days_ago = current_time - (3 * 24 * 60 * 60)  # 3 days in seconds
-        
-        # Collect images from the last 3 days
+        # Collect all image files
         all_images = glob.glob(os.path.join(IMAGE_DIR, "*.jpg"))
         all_images.extend(glob.glob(os.path.join(IMAGE_DIR, "*.jpeg")))
         
@@ -115,27 +99,14 @@ def generate_timelapse_video():
             logger.warning("[TIMELAPSE] No images found in IMAGE_DIR.")
             return {"success": False, "error": "No images available"}
         
-        # Filter images by modification time (last 3 days)
-        recent_images = []
-        for img_path in all_images:
-            try:
-                if os.stat(img_path).st_mtime >= three_days_ago:
-                    recent_images.append(img_path)
-            except OSError as e:
-                logger.warning(f"[TIMELAPSE] Cannot stat file {img_path}: {e}")
-        
-        if not recent_images:
-            logger.warning("[TIMELAPSE] No images from the last 3 days.")
-            return {"success": False, "error": "No images from the last 3 days"}
-        
-        # Sort images chronologically by filename/timestamp
-        recent_images.sort()
-        logger.info(f"[TIMELAPSE] Found {len(recent_images)} images for video generation.")
+        # Sort images chronologically by filename (timestamp-based naming)
+        all_images.sort()
+        logger.info(f"[TIMELAPSE] Found {len(all_images)} images for video generation.")
         
         # Read the first image to determine dimensions
-        first_frame = cv2.imread(recent_images[0])
+        first_frame = cv2.imread(all_images[0])
         if first_frame is None:
-            logger.error(f"[TIMELAPSE] Failed to read first image: {recent_images[0]}")
+            logger.error(f"[TIMELAPSE] Failed to read first image: {all_images[0]}")
             return {"success": False, "error": "Cannot read first image"}
         
         height, width = first_frame.shape[:2]
@@ -147,7 +118,6 @@ def generate_timelapse_video():
         output_path = os.path.join(VIDEO_DIR, f"timelapse_{timestamp}.mp4")
         
         # Initialize VideoWriter with H.264 codec
-        # Fallback codecs: 'mp4v' or 'avc1' depending on OpenCV build
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         fps = 30.0
         
@@ -161,7 +131,7 @@ def generate_timelapse_video():
         frame_count = 0
         failed_frames = 0
         
-        for img_path in recent_images:
+        for img_path in all_images:
             try:
                 frame = cv2.imread(img_path)
                 if frame is None:
@@ -169,7 +139,7 @@ def generate_timelapse_video():
                     failed_frames += 1
                     continue
                 
-                # Resize frame to match output dimensions (in case of size mismatch)
+                # Resize frame if dimensions don't match
                 if frame.shape[:2] != (height, width):
                     frame = cv2.resize(frame, size)
                 
@@ -188,19 +158,22 @@ def generate_timelapse_video():
             os.remove(output_path)
             return {"success": False, "error": "No valid frames to write"}
         
+        file_size_mb = os.path.getsize(output_path) / (1024 * 1024)
         logger.info(
             f"[TIMELAPSE] Video generated successfully: {output_path} "
-            f"({frame_count} frames, {failed_frames} skipped)"
+            f"({frame_count} frames, {failed_frames} skipped, {file_size_mb:.2f} MB)"
         )
         
         return {
             "success": True,
             "video_path": output_path,
+            "video_url": f"/static/videos/{os.path.basename(output_path)}",
             "frame_count": frame_count,
             "skipped_frames": failed_frames,
-            "file_size_mb": os.path.getsize(output_path) / (1024 * 1024)
+            "file_size_mb": round(file_size_mb, 2)
         }
         
     except Exception as e:
         logger.error(f"[TIMELAPSE] Error during video generation: {e}", exc_info=True)
         return {"success": False, "error": str(e)}
+

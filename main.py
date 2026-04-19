@@ -9,7 +9,6 @@ from routers import sensor
 from routers import device
 from routers import camera
 from routers.camera import UPLOAD_DIR
-from scheduler import init_scheduler, shutdown_scheduler
 from contextlib import asynccontextmanager
 
 # Configure logging
@@ -21,21 +20,18 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Initialize database and scheduler
-    logger.info("[STARTUP] Starting EverGreen Box Backend...")
+    # Startup: Initialize database
+    logger.info("[STARTUP] Starting EverGreen Box Backend (Demo Version)...")
     init_db()
     logger.info("[STARTUP] Database initialized.")
-    init_scheduler()
-    logger.info("[STARTUP] Background scheduler initialized.")
     
     yield  # Application runs here
     
-    # Shutdown: Cleanup scheduler
+    # Shutdown
     logger.info("[SHUTDOWN] Shutting down EverGreen Box Backend...")
-    shutdown_scheduler()
     logger.info("[SHUTDOWN] Server shutdown complete.")
 
-app = FastAPI(title="EverGreen Box API", lifespan=lifespan)
+app = FastAPI(title="EverGreen Box API - Demo", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -69,7 +65,7 @@ app.include_router(camera.router, prefix="/api/camera", tags=["Camera"])
 
 @app.get("/")
 def root():
-    return {"message": "EverGreen Box backend is running!"}
+    return {"message": "EverGreen Box backend (Demo Version) is running!"}
 
 @app.get("/health")
 def health():
