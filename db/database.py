@@ -38,12 +38,10 @@ def init_db():
                 temperature REAL NOT NULL,
                 humidity REAL NOT NULL,
                 light REAL NOT NULL,
-                moisture REAL NOT NULL,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
                 CHECK (temperature >= -50 AND temperature <= 60),
                 CHECK (humidity >= 0 AND humidity <= 100),
-                CHECK (light >= 0),
-                CHECK (moisture >= 0 AND moisture <= 100)
+                CHECK (light >= 0)
             )
         ''')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_sensor_timestamp ON sensor_data(timestamp DESC)')
@@ -118,7 +116,7 @@ def get_latest_sensor_data():
         print(f"Database error: {e}")
         return None
 
-def save_sensor_data(temp: float, hum: float, light: float, moist: float):
+def save_sensor_data(temp: float, hum: float, light: float):
     """Save sensor data with validation and transaction support"""
     # Input validation
     if not (-50 <= temp <= 60):
@@ -127,15 +125,13 @@ def save_sensor_data(temp: float, hum: float, light: float, moist: float):
         raise ValueError(f"Humidity {hum} out of valid range [0, 100]")
     if light < 0:
         raise ValueError(f"Light {light} cannot be negative")
-    if not (0 <= moist <= 100):
-        raise ValueError(f"Moisture {moist} out of valid range [0, 100]")
     
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "INSERT INTO sensor_data (temperature, humidity, light, moisture) VALUES (?, ?, ?, ?)",
-                (temp, hum, light, moist)
+                "INSERT INTO sensor_data (temperature, humidity, light) VALUES (?, ?, ?)",
+                (temp, hum, light)
             )
             conn.commit()
     except sqlite3.Error as e:
@@ -147,7 +143,7 @@ def get_history_data(limit=20):
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT temperature, humidity, light, moisture, timestamp 
+                SELECT temperature, humidity, light, timestamp 
                 FROM sensor_data 
                 ORDER BY timestamp DESC 
                 LIMIT ?
