@@ -83,8 +83,8 @@ def generate_timelapse_video():
     """
     Generate an MP4 timelapse video from all available images in the directory.
     
-    For demo mode, this reads all currently stored images (capped at 500),
-    sorts them chronologically, and compiles them into an H.264 MP4 (30 FPS).
+    For demo mode, this reads all currently stored images (capped at 500) from the
+    USB webcam capture, sorts them chronologically, and compiles them into an H.264 MP4 (30 FPS).
     
     Returns:
         dict: {"success": True, "video_path": "...", "frame_count": N} or 

@@ -37,16 +37,18 @@ async def upload_image(
     yolo_result: str = Form(None)
 ):
     """
-    Handle image upload from ESP32-Cam or similar IoT device.
+    Handle image upload from USB webcam connected to macbook.
+    Enforces a hard cap of 500 images; older images are deleted FIFO.
     
     Parameters:
-    - file: JPEG image file
+    - file: JPEG image file captured from USB webcam
     - yolo_result: Optional YOLO classification result as JSON string
     
     Returns:
     - status: 'success' or error message
     - image_url: Path to access the image
     - filename: Stored filename
+    - image_count: Current number of images stored (max 500)
     """
     try:
         # Ensure upload directory exists
@@ -152,7 +154,7 @@ async def get_latest_image():
 @router.post("/generate-demo-video")
 async def generate_demo_video():
     """
-    Manually trigger timelapse video generation from all available images.
+    Manually trigger timelapse video generation from all available images captured by USB webcam.
     For demo mode, compiles all images (capped at 500) into a 30 FPS MP4.
     
     Returns:
