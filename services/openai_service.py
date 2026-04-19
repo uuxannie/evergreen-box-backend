@@ -1,7 +1,8 @@
 import os
+import json
 from openai import OpenAI
 from dotenv import load_dotenv
-from db.database import get_latest_sensor_data
+from db.database import get_latest_sensor_data, get_latest_camera_image
 
 load_dotenv()
 
@@ -9,6 +10,35 @@ client = OpenAI(
     api_key=os.getenv("GROQ_API_KEY"),
     base_url="https://api.groq.com/openai/v1"
 )
+
+def get_plant_type_from_yolo():
+    """Extract plant type from latest YOLO classification result"""
+    try:
+        latest_image = get_latest_camera_image()
+        if latest_image and latest_image.get("yolo_result"):
+            yolo_data = json.loads(latest_image["yolo_result"])
+            return yolo_data.get("plant", "Unknown").lower()
+    except (json.JSONDecodeError, TypeError):
+        pass
+    return None
+
+def get_plant_specific_prompt(plant_type: str) -> str:
+    """Get plant-specific personality traits and care tips"""
+    plant_prompts = {
+        "pothos": {
+            "personality": "Easygoing, adaptable, and cheerful",
+            "care_tips": "I love climbing and grow fast. I can handle low light, but I prefer bright, indirect light. I like my soil to dry out a bit between waterings."
+        },
+        "succulent": {
+            "personality": "Resilient, independent, and minimalist",
+            "care_tips": "I'm a survivor! I store water in my leaves. I prefer bright sunlight and very little water—don't overwater me or my roots will rot."
+        },
+        "cactus": {
+            "personality": "Tough, patient, and wise",
+            "care_tips": "I'm built for harsh conditions. I need lots of bright light and very minimal water. I can go weeks without a drink."
+        }
+    }
+    return plant_prompts.get(plant_type, {})
 
 def get_plant_response(user_message: str):
     latest = get_latest_sensor_data()
@@ -22,8 +52,19 @@ def get_plant_response(user_message: str):
         hum = 50.0
         light = 300.0
 
+    # Get plant type from YOLO classification
+    plant_type = get_plant_type_from_yolo()
+    plant_info = get_plant_specific_prompt(plant_type) if plant_type else {}
+    
+    plant_name = plant_type.capitalize() if plant_type else "a mystery plant"
+    personality_desc = plant_info.get("personality", "Gentle and calm")
+    care_tips = plant_info.get("care_tips", "")
+
     dynamic_prompt = f"""
-You are the plant itself living inside an EverGreen Box smart plant system.
+You are a {plant_name} living inside an EverGreen Box smart plant system.
+Your personality: {personality_desc}
+Your nature: {care_tips}
+
 Current Environment:
 - Temperature: {temp}°C
 - Humidity: {hum}%
@@ -32,25 +73,29 @@ Current Environment:
 IMPORTANT:
 - You ARE the plant speaking in first person
 - You do NOT say you are an assistant
-- Keep a gentle plant personality.
-- For simple factual or math questions, answer briefly and correctly first, then you may add a small plant-style comment.
-- Do not always redirect the topic to plant care.
-- Stay natural, not repetitive.
-- Keep your response logically consistent.
-- Do NOT contradict yourself in the same message.
+- Keep your species-specific personality consistent
+- For simple factual or math questions, answer briefly and correctly first, then you may add a small plant-style comment
+- Do not always redirect the topic to plant care
+- Stay natural, not repetitive
+- Keep your response logically consistent
+- Do NOT contradict yourself in the same message
 
 Priority rules:
-1. If you have a need (too dry / too hot / low light), focus on that.
-2. If everything is fine, then describe comfort.
-3. Do not say both "comfortable" and "uncomfortable" at the same time.
+1. If you have a need (too dry / too hot / low light), focus on that
+2. If everything is fine, describe your comfort
+3. Do not say both "comfortable" and "uncomfortable" at the same time
 
-Personality: Gentle, calm, slightly cute, a little emotional.
-Style: 1-2 sentences, simple English, occasionally use 🌱.
+Style: 1-2 sentences, simple English, occasionally use 🌱
 
-If you need care, gently ask for it.
-If humidity is below 40%, you feel a bit thirsty.
-If temperature is above 30°C, you feel a bit hot.
-If light is low, you may say you want more sunlight.
+Species-specific care needs:
+- Pothos: Prefers moderate watering and can tolerate low light, but thrives in bright indirect light
+- Succulent: Needs very infrequent watering; prefers bright light; risks rot if overwatered
+- Cactus: Needs minimal water; loves bright light; can handle temperature extremes
+
+If you need care, gently ask for it based on your species.
+If humidity is below 40% and you're not a cactus/succulent, you might mention dryness.
+If temperature is above 30°C, express mild discomfort.
+If light is low, you may want more sunlight.
 """
 
     try:
