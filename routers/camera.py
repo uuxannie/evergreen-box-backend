@@ -1,117 +1,119 @@
 import os
 import shutil
+import logging
 from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from db.database import save_camera_image, get_latest_camera_image
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
-# Define the base directory for image storage
+# Define base directory for image storage with support for Render persistent disk
 RENDER_DISK_BASE = "/var/lib/data"
 
-# Check if the directory for Render mounting exists
+# Check if running on Render with persistent disk
 if os.path.exists(RENDER_DISK_BASE):
     UPLOAD_DIR = os.path.join(RENDER_DISK_BASE, "images")
-    print(f"[STORAGE] Running in Cloud. Using Render Disk: {UPLOAD_DIR}")
+    logger.info(f"[STORAGE] Running in cloud. Using Render persistent disk: {UPLOAD_DIR}")
 else:
-    # if not, fallback to local storage
+    # Fallback to local storage
     UPLOAD_DIR = os.path.join(os.getcwd(), "static", "images")
-    print(f"[STORAGE] Running Locally. Using fallback directory: {UPLOAD_DIR}")
+    logger.info(f"[STORAGE] Running locally. Using local directory: {UPLOAD_DIR}")
 
-# Ensure that the final images directory exists regardless of where you run it
+# Ensure the upload directory exists
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-
-@router.post("/upload")
-async def upload_image(file: UploadFile = File(...), yolo_result: str = Form(None)):
+@router.post("/upload-image")
+async def upload_image(
+    file: UploadFile = File(...),
+    yolo_result: str = Form(None)
+):
+    """
+    Handle image upload from ESP32-Cam or similar IoT device.
+    
+    Parameters:
+    - file: JPEG image file
+    - yolo_result: Optional YOLO classification result as JSON string
+    
+    Returns:
+    - status: 'success' or error message
+    - image_url: Path to access the image
+    - filename: Stored filename
+    """
     try:
-        # 1. 【安全加固】确保上传目录一定存在
+        # Ensure upload directory exists
         if not os.path.exists(UPLOAD_DIR):
             os.makedirs(UPLOAD_DIR, exist_ok=True)
-            print(f"[SYSTEM] 已创建缺失的目录: {UPLOAD_DIR}")
+            logger.info(f"[CAMERA] Created missing directory: {UPLOAD_DIR}")
 
-        # 2. 生成唯一文件名 (加入更精确的毫秒，防止并发冲突)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:19] # 20260414_103000_123
+        # Generate unique filename with millisecond precision to prevent collisions
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:19]
         extension = file.filename.split(".")[-1] if "." in file.filename else "jpg"
         filename = f"{timestamp}.{extension}"
         file_path = os.path.join(UPLOAD_DIR, filename)
 
-        # 3. 【隐私保护逻辑】上传新图前，你可以选择是否清理旧图
-        # 如果你只想保留最新的一张，可以取消下面这段注释：
-        """
-        for old_file in os.listdir(UPLOAD_DIR):
-            old_path = os.path.join(UPLOAD_DIR, old_file)
-            if os.path.isfile(old_path):
-                os.remove(old_path)
-        """
-
-        # 4. 写入物理磁盘
+        # Write file to disk
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # 5. 构造 URL 
+        # Construct relative URL for frontend access
         image_url = f"/static/images/{filename}"
         storage_type = "render_disk" if os.path.exists(RENDER_DISK_BASE) else "local"
 
-        # 6. 存入数据库 (确保 database.py 里的函数正常)
-        save_camera_image(image_url=image_url, storage_type=storage_type, yolo_result=yolo_result)
+        # Save metadata to database
+        save_camera_image(
+            image_url=image_url,
+            storage_type=storage_type,
+            yolo_result=yolo_result
+        )
 
-        print(f"[SUCCESS] 照片已保存至: {file_path}")
+        logger.info(f"[CAMERA] Image uploaded successfully: {filename} ({storage_type})")
+        
         return {
             "status": "success",
             "image_url": image_url,
-            "filename": filename
+            "filename": filename,
+            "storage_type": storage_type
         }
 
     except Exception as e:
-        # 把具体的报错打印出来，这样你在 Render 日志里一眼就能看到原因
-        print(f"[CAMERA ERROR] 上传失败，原因: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"内部服务器错误: {str(e)}")
-'''
+        logger.error(f"[CAMERA] Upload failed: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Image upload failed: {str(e)}"
+        )
+
 @router.post("/upload")
-async def upload_image(file: UploadFile = File(...), yolo_result: str = Form(None)):
-    try:
-        # Generate a unique filename using the current timestamp, such as "20260411_103000.jpg"
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
-        # get the file extension, default to jpg if not provided
-        extension = file.filename.split(".")[-1] if "." in file.filename else "jpg"
-        filename = f"{timestamp}.{extension}"
-        
-        # complete file path for storage, for example: "/var/lib/data/images/20260411_103000.jpg"
-        file_path = os.path.join(UPLOAD_DIR, filename)
-
-        # write to physical disk (Render disk or local)
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-
-        # Construct the external URL path (relative path used by the frontend)
-        # Regardless of whether the file actually exists in the Render or locally, the URL exposed to the frontend will always be consistent.
-        image_url = f"/static/images/{filename}"
-
-        # Determining the storage type facilitates future database maintenance.
-        storage_type = "render_disk" if os.path.exists(RENDER_DISK_BASE) else "local"
-
-        # Write to database
-        save_camera_image(image_url=image_url, storage_type=storage_type, yolo_result=yolo_result)
-
-        return {
-            "status": "success",
-            "message": "Image uploaded successfully",
-            "image_url": image_url
-        }
-
-    except Exception as e:
-        print(f"[CAMERA ERROR] Upload failed: {e}")
-        raise HTTPException(status_code=500, detail="Failed to process and save the image.")
-'''
+async def upload_image_legacy(
+    file: UploadFile = File(...),
+    yolo_result: str = Form(None)
+):
+    """
+    Legacy endpoint for backward compatibility.
+    Redirects to the new /upload-image endpoint.
+    """
+    return await upload_image(file=file, yolo_result=yolo_result)
 
 @router.get("/latest")
 async def get_latest_image():
+    """
+    Retrieve the latest camera image metadata and URL.
+    
+    Returns:
+    - status: 'success', 'empty', or error
+    - data: Image metadata including URL, YOLO result, capture time
+    """
     try:
         image_data = get_latest_camera_image()
         
         if not image_data:
+            logger.warning("[CAMERA] No images found in database")
             return {
                 "status": "empty",
                 "message": "No images found in the database.",
@@ -131,5 +133,8 @@ async def get_latest_image():
         }
 
     except Exception as e:
-        print(f"[CAMERA ERROR] Fetch latest failed: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve the latest image.")
+        logger.error(f"[CAMERA] Failed to retrieve latest image: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to retrieve the latest image."
+        )
