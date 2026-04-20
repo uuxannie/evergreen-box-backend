@@ -2,7 +2,7 @@ import os
 import json
 from openai import OpenAI
 from dotenv import load_dotenv
-from db.database import get_latest_sensor_data, get_latest_camera_image
+from backend.db.database import get_latest_sensor_data, get_latest_camera_image
 
 load_dotenv()
 

@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from db.database import save_sensor_data, get_latest_sensor_data, get_history_data
+from backend.db.database import save_sensor_data, get_latest_sensor_data, get_history_data
 
 router = APIRouter()
 

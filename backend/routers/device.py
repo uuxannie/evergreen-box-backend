@@ -3,8 +3,8 @@ from pydantic import BaseModel
 from typing import Literal
 from datetime import datetime
 import traceback
-from db.database import log_device_action, get_today_device_stats
-from db.database import update_state_in_db, get_state_from_db
+from backend.db.database import log_device_action, get_today_device_stats
+from backend.db.database import update_state_in_db, get_state_from_db
 
 router = APIRouter()
 

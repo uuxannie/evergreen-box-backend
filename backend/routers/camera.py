@@ -5,8 +5,8 @@ import json
 import logging
 from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
-from db.database import save_camera_image, get_latest_camera_image
-from services.timelapse_service import enforce_image_cap, generate_timelapse_video
+from backend.db.database import save_camera_image, get_latest_camera_image
+from backend.services.timelapse_service import enforce_image_cap, generate_timelapse_video
 
 # Configure logging
 logging.basicConfig(

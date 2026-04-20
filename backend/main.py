@@ -3,12 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import logging
 
-from routers import ai
-from db.database import init_db
-from routers import sensor
-from routers import device
-from routers import camera
-from routers.camera import UPLOAD_DIR
+from backend.routers import ai
+from backend.db.database import init_db
+from backend.routers import sensor
+from backend.routers import device
+from backend.routers import camera
+from backend.routers.camera import UPLOAD_DIR
 from contextlib import asynccontextmanager
 
 # Configure logging

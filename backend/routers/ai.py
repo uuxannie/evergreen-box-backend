@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException
-from services.ai_service import get_plant_response
-from services.ai_service import summarize_java_question, get_java_solution
+from backend.services.ai_service import get_plant_response
+from backend.services.ai_service import summarize_java_question, get_java_solution
 import time
 
 router = APIRouter()

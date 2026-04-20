@@ -1,7 +1,7 @@
 import logging
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-from services.timelapse_service import clean_old_files, generate_timelapse_video
+from backend.services.timelapse_service import clean_old_files, generate_timelapse_video
 
 # Configure logging
 logging.basicConfig(
