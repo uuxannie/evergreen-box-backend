@@ -33,6 +33,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="EverGreen Box API - Demo", lifespan=lifespan)
 
+# IMPORTANT: Add CORS middleware FIRST, before any other middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
