@@ -156,14 +156,15 @@ async def get_latest_image():
 async def get_latest_detection():
     """
     Retrieve the latest camera image's parsed YOLO detection result.
-    Extracts plant type, confidence, and health status from stored YOLO result.
+    Extracts plant type and two confidence levels from stored YOLO result.
     
     Returns:
     - status: 'success', 'empty', or error
     - data: Parsed detection data
         - plant_type: Detected plant species (e.g., "pothos")
-        - confidence: Detection confidence as float 0-1 (e.g., 0.95)
+        - confidence_plant: Plant species detection confidence as float 0-1 (e.g., 0.92)
         - health_status: Plant health status (e.g., "Healthy", "UNHEALTHY")
+        - confidence_health: Health status detection confidence as float 0-1 (e.g., 0.95)
         - disease_class: Disease classification (same as health_status)
         - recommendation: Care recommendation based on detection
         - captured_at: When the image was captured
@@ -178,8 +179,9 @@ async def get_latest_detection():
                 "message": "No detection results available yet.",
                 "data": {
                     "plant_type": "Unknown",
-                    "confidence": 0.0,
+                    "confidence_plant": 0.0,
                     "health_status": "Healthy",
+                    "confidence_health": 0.0,
                     "disease_class": "Healthy",
                     "recommendation": "Waiting for first detection...",
                     "captured_at": None
@@ -195,20 +197,20 @@ async def get_latest_detection():
         
         # Extract detection data with safe fallbacks
         plant_type = yolo_data.get("plant", "Unknown")
-        confidence = yolo_data.get("confidence", 0)
+        confidence_plant = yolo_data.get("confidence_plant", 0)
         health_status = yolo_data.get("health_status", "Healthy")
+        confidence_health = yolo_data.get("confidence_health", 0)
         
-        # Ensure confidence is float 0-1
+        # Ensure confidences are float 0-1
         try:
-            if isinstance(confidence, str):
-                confidence_val = float(confidence.strip('%'))
-                confidence = confidence_val / 100 if confidence_val > 1 else confidence_val
-            else:
-                confidence = float(confidence)
+            confidence_plant = float(confidence_plant) if confidence_plant else 0.0
+            confidence_health = float(confidence_health) if confidence_health else 0.0
         except (ValueError, TypeError):
-            confidence = 0.0
+            confidence_plant = 0.0
+            confidence_health = 0.0
         
-        confidence = round(confidence, 3)
+        confidence_plant = round(confidence_plant, 3)
+        confidence_health = round(confidence_health, 3)
         
         # Map health status to recommendations
         recommendation_map = {
@@ -221,8 +223,9 @@ async def get_latest_detection():
             "status": "success",
             "data": {
                 "plant_type": plant_type.lower() if plant_type != "Unknown" else "Unknown",
-                "confidence": confidence,  # Float 0-1
+                "confidence_plant": confidence_plant,  # Float 0-1
                 "health_status": health_status,
+                "confidence_health": confidence_health,  # Float 0-1
                 "disease_class": health_status,  # Keep for API compatibility
                 "recommendation": recommendation,
                 "captured_at": image_data.get("captured_at")
