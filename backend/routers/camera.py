@@ -198,11 +198,18 @@ async def get_latest_detection():
         confidence = yolo_data.get("confidence", 0)
         disease_class = yolo_data.get("disease", "Healthy")
         
-        # Convert confidence to percentage if it's a decimal
-        if isinstance(confidence, float) and confidence <= 1.0:
-            confidence_str = f"{int(confidence * 100)}%"
+        # Convert confidence to percentage string - handle both string and numeric formats
+        if isinstance(confidence, str):
+            # Already a string like "98.5%" or "98.5"
+            confidence_str = confidence if "%" in confidence else f"{confidence}%"
+        elif isinstance(confidence, (int, float)):
+            # Numeric value - convert to percentage
+            if confidence <= 1.0:
+                confidence_str = f"{int(confidence * 100)}%"
+            else:
+                confidence_str = f"{int(confidence)}%"
         else:
-            confidence_str = f"{int(confidence)}%"
+            confidence_str = "0%"
         
         # Map disease class to health status
         health_status_map = {
