@@ -21,7 +21,7 @@ load_dotenv()
 
 # ================= Configuration =================
 RENDER_BACKEND_URL = os.getenv('RENDER_BACKEND_URL', "https://evergreen-box-backend.onrender.com")
-UPLOAD_INTERVAL_SECONDS = 15  # Upload interval in seconds
+UPLOAD_INTERVAL_SECONDS = 3  # Upload interval in seconds (faster updates to frontend)
 UPLOAD_TIMEOUT_SECONDS = 5
 
 CAMERA_INDEX = 0
@@ -188,6 +188,7 @@ def run_yolo_detection(frame, model_a, model_b):
             plant_cls = int(best_box_a.cls[0])
             detected_plant_name = model_a.names[plant_cls]
             confidence_a = float(best_box_a.conf[0])
+            confidence_final = confidence_a  # Default to plant detection confidence
             
             # Arduino command based on plant class
             arduino_command = str(int(plant_cls))
@@ -199,39 +200,49 @@ def run_yolo_detection(frame, model_a, model_b):
                 # Model B: Plant health state detection
                 results_b = model_b(cropped_plant, conf=0.9, verbose=False)
                 
-                for box_b in results_b[0].boxes:
-                    health_cls = int(box_b.cls[0])
-                    health_name = model_b.names[health_cls]
-                    confidence_b = float(box_b.conf[0])
-                    
-                    bx1, by1, bx2, by2 = map(int, box_b.xyxy[0])
-                    real_x1, real_y1 = x1 + bx1, y1 + by1
-                    real_x2, real_y2 = x1 + bx2, y1 + by2
-                    
-                    # Draw annotation on frame
-                    color = (0, 0, 255) if health_name.upper() == 'UNHEALTHY' else (0, 255, 0)
-                    cv2.rectangle(annotated_frame, (real_x1, real_y1), (real_x2, real_y2), color, 2)
-                    cv2.putText(annotated_frame, f"STATUS: {health_name}", (real_x1, real_y1 - 10),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
-                    
-                    if health_name.upper() == 'UNHEALTHY':
-                        spot_detected_this_frame = True
-                        detected_health_status = health_name  # Priority: UNHEALTHY
-                        confidence_final = confidence_b
-                    else:
-                        # Only update if we haven't found UNHEALTHY yet
-                        if detected_health_status == "Unknown":
-                            detected_health_status = health_name
+                # Check if health detection found anything
+                if len(results_b[0].boxes) > 0:
+                    for box_b in results_b[0].boxes:
+                        health_cls = int(box_b.cls[0])
+                        health_name = model_b.names[health_cls]
+                        confidence_b = float(box_b.conf[0])
+                        
+                        bx1, by1, bx2, by2 = map(int, box_b.xyxy[0])
+                        real_x1, real_y1 = x1 + bx1, y1 + by1
+                        real_x2, real_y2 = x1 + bx2, y1 + by2
+                        
+                        # Draw annotation on frame
+                        color = (0, 0, 255) if health_name.upper() == 'UNHEALTHY' else (0, 255, 0)
+                        cv2.rectangle(annotated_frame, (real_x1, real_y1), (real_x2, real_y2), color, 2)
+                        cv2.putText(annotated_frame, f"STATUS: {health_name}", (real_x1, real_y1 - 10),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+                        
+                        if health_name.upper() == 'UNHEALTHY':
+                            spot_detected_this_frame = True
+                            detected_health_status = health_name  # Priority: UNHEALTHY
                             confidence_final = confidence_b
-                
-                # Update global YOLO result once per frame with final detected state
-                with yolo_result_lock:
-                    latest_yolo_result = {
-                        "plant": detected_plant_name,
-                        "health_status": detected_health_status,
-                        "confidence": round(confidence_final, 3),  # Keep as float 0-1
-                        "timestamp": datetime.now().isoformat()
-                    }
+                        else:
+                            # Only update if we haven't found UNHEALTHY yet
+                            if detected_health_status == "Unknown":
+                                detected_health_status = health_name
+                                confidence_final = confidence_b
+                else:
+                    # Health model found no boxes, use plant confidence
+                    detected_health_status = "Monitoring"
+                    confidence_final = confidence_a
+            else:
+                # Crop too small, use plant detection
+                detected_health_status = "Crop Too Small"
+                confidence_final = confidence_a
+        
+        # ALWAYS update YOLO result with current frame data (even if empty)
+        with yolo_result_lock:
+            latest_yolo_result = {
+                "plant": detected_plant_name,
+                "health_status": detected_health_status,
+                "confidence": round(confidence_final, 3),  # Keep as float 0-1
+                "timestamp": datetime.now().isoformat()
+            }
         
     except Exception as e:
         logger.error(f"YOLO detection error: {e}")
@@ -296,7 +307,7 @@ def upload_to_backend(dummy):
 
 # ================= Main Program =================
 def main():
-    global upload_thread, should_exit, latest_yolo_result, ser, current_frame
+    global upload_thread, should_exit, latest_yolo_result, ser, current_frame, last_alert_date, detection_history
     
     # Initialize variables to prevent UnboundLocalError in finally block
     cap = None
