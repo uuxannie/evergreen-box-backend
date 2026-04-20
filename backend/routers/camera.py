@@ -196,7 +196,7 @@ async def get_latest_detection():
         # Extract detection data with safe fallbacks
         plant_type = yolo_data.get("plant", "Unknown")
         confidence = yolo_data.get("confidence", 0)
-        disease_class = yolo_data.get("disease", "Healthy")
+        health_status = yolo_data.get("health_status", "Healthy")
         
         # Convert confidence to percentage string
         # Expected format: float between 0-1 (e.g., 0.985)
@@ -217,25 +217,16 @@ async def get_latest_detection():
         except (ValueError, TypeError):
             confidence_str = "0%"
         
-        # Map disease class to health status
-        health_status_map = {
-            "Healthy": "Healthy",
-            "Yellowing": "Warning",
-            "Dark-spot": "Alert",
-            "Rot Risk": "Alert",
-            "Leaf Spot": "Alert"
-        }
-        health_status = health_status_map.get(disease_class, "Monitoring")
-        
-        # Generate recommendation based on disease
+        # Map health status to recommendations
         recommendation_map = {
             "Healthy": "No action needed",
+            "Unhealthy": "Plant needs attention - check watering and light conditions",
             "Yellowing": "Check watering conditions and adjust if needed",
             "Dark-spot": "Reduce watering and improve ventilation",
             "Rot Risk": "Reduce watering immediately and improve air circulation",
             "Leaf Spot": "Isolate plant and reduce leaf moisture"
         }
-        recommendation = recommendation_map.get(disease_class, "Continue monitoring")
+        recommendation = recommendation_map.get(health_status, "Continue monitoring")
         
         return {
             "status": "success",
@@ -243,7 +234,7 @@ async def get_latest_detection():
                 "plant_type": plant_type.lower() if plant_type != "Unknown" else "Unknown",
                 "confidence": confidence_str,
                 "health_status": health_status,
-                "disease_class": disease_class,
+                "disease_class": health_status,  # Keep for API compatibility
                 "recommendation": recommendation,
                 "captured_at": image_data.get("captured_at")
             }

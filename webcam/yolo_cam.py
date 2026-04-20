@@ -69,6 +69,8 @@ last_serial_send_time = time.time()
 # Thread control
 upload_thread = None
 should_exit = False
+current_frame = None  # Shared frame for upload thread
+current_frame_lock = threading.Lock()
 
 # Arduino serial port
 ser = None
@@ -232,16 +234,20 @@ def run_yolo_detection(frame, model_a, model_b):
     return annotated_frame, spot_detected_this_frame, detected_plant_name, arduino_command
 
 # ================= Background Upload Thread =================
-def upload_to_backend(current_frame):
+def upload_to_backend(dummy):
     """
     Background thread task: Periodically upload current frame and YOLO results to backend
     """
-    global latest_yolo_result
+    global latest_yolo_result, current_frame
     
     while not should_exit:
         time.sleep(UPLOAD_INTERVAL_SECONDS)
         
-        if current_frame is None:
+        # Get current frame
+        with current_frame_lock:
+            frame = current_frame
+        
+        if frame is None:
             continue
         
         try:
@@ -250,7 +256,7 @@ def upload_to_backend(current_frame):
                 yolo_data = latest_yolo_result.copy()
             
             # Encode image as JPEG
-            ret, buffer = cv2.imencode('.jpg', current_frame)
+            ret, buffer = cv2.imencode('.jpg', frame)
             if not ret:
                 logger.warning("Image encoding failed")
                 continue
@@ -272,7 +278,7 @@ def upload_to_backend(current_frame):
             )
             
             if response.status_code == 200:
-                logger.info(f"Upload successful - {yolo_data['plant']} ({yolo_data['disease']})")
+                logger.info(f"Upload successful - {yolo_data['plant']} ({yolo_data['health_status']})")
             else:
                 logger.warning(f"Upload returned status code: {response.status_code}")
         
@@ -285,7 +291,7 @@ def upload_to_backend(current_frame):
 
 # ================= Main Program =================
 def main():
-    global upload_thread, should_exit, latest_yolo_result, ser
+    global upload_thread, should_exit, latest_yolo_result, ser, current_frame
     
     # Initialize variables to prevent UnboundLocalError in finally block
     cap = None
@@ -312,7 +318,6 @@ def main():
         
         logger.info("System started. Press 'q' to stop.\n")
         
-        current_frame = None
         frame_count = 0
         
         while True:
@@ -383,8 +388,9 @@ def main():
             cv2.putText(annotated_frame, arduino_status, (20, 150),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0) if ser else (0, 0, 255), 2)
             
-            # Update current frame for background upload
-            current_frame = frame
+            # Update current frame for background upload thread (thread-safe)
+            with current_frame_lock:
+                current_frame = frame
             
             # Display frame
             cv2.imshow('EverGreen Box - M1 Plant Monitor', annotated_frame)
