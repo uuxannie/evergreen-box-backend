@@ -155,6 +155,26 @@ def get_history_data(limit=20):
         print(f"Database error: {e}")
         return []
 
+def get_weekly_sensor_data():
+    """Get all sensor data from the past 7 days"""
+    try:
+        from datetime import timedelta
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            # Get data from the past 7 days
+            cursor.execute("""
+                SELECT temperature, humidity, light, timestamp 
+                FROM sensor_data 
+                WHERE timestamp >= datetime('now', '-7 days')
+                ORDER BY timestamp DESC
+            """)
+            
+            rows = cursor.fetchall()
+            return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+        return []
+
 def get_action_counts():
     """Legacy function adapted to work with the new device_logs schema."""
     try:

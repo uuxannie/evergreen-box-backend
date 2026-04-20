@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException
-from backend.services.ai_service import get_plant_response
+from backend.services.ai_service import get_plant_response, get_weekly_report
 from backend.services.ai_service import summarize_java_question, get_java_solution
 import time
 
@@ -27,6 +27,20 @@ async def chat(req: ChatRequest):
     except Exception as e:
         elapsed = time.time() - start_time
         print(f"Chat failed after {elapsed:.2f} seconds: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/weekly-report")
+async def weekly_report():
+    """Generate a weekly AI report based on the past 7 days of sensor data"""
+    start_time = time.time()
+    try:
+        report = get_weekly_report()
+        elapsed = time.time() - start_time
+        print(f"Weekly report generated in {elapsed:.2f} seconds")
+        return {"report": report}
+    except Exception as e:
+        elapsed = time.time() - start_time
+        print(f"Weekly report generation failed after {elapsed:.2f} seconds: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     
 @router.post("/java/summarize")

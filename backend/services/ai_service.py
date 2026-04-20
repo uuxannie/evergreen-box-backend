@@ -2,7 +2,7 @@ import os
 import json
 from openai import OpenAI
 from dotenv import load_dotenv
-from backend.db.database import get_latest_sensor_data, get_latest_camera_image
+from backend.db.database import get_latest_sensor_data, get_latest_camera_image, get_weekly_sensor_data
 
 load_dotenv()
 
@@ -113,6 +113,83 @@ Species-specific care knowledge (know this, but don't mention unless asked):
 
     except Exception:
         return "🌱 I'm feeling a little disconnected right now, but I'm still here."
+
+def get_weekly_report():
+    """Generate a weekly AI report on plant health based on sensor data from the past 7 days"""
+    # Get plant type
+    plant_type = get_plant_type_from_yolo()
+    plant_name = plant_type.capitalize() if plant_type else "Plant"
+    
+    # Get weekly sensor data
+    weekly_data = get_weekly_sensor_data()
+    
+    # If no data, return default message
+    if not weekly_data or len(weekly_data) == 0:
+        return f"This week, the {plant_name} remained generally healthy. Environmental conditions were favorable. Recommendation: maintain the current monitoring schedule."
+    
+    # Calculate statistics from the week's data
+    temps = [d["temperature"] for d in weekly_data]
+    hums = [d["humidity"] for d in weekly_data]
+    lights = [d["light"] for d in weekly_data]
+    
+    avg_temp = round(sum(temps) / len(temps), 1)
+    avg_hum = round(sum(hums) / len(hums), 1)
+    avg_light = round(sum(lights) / len(lights), 1)
+    
+    min_temp = min(temps)
+    max_temp = max(temps)
+    min_hum = min(hums)
+    max_hum = max(hums)
+    
+    # Create a summary of sensor conditions
+    sensor_summary = f"""
+Weekly Environmental Summary (last 7 days):
+- Temperature: Average {avg_temp}°C (range {min_temp}°C - {max_temp}°C)
+- Humidity: Average {avg_hum}% (range {min_hum}% - {max_hum}%)
+- Light: Average {avg_light} (samples: {len(lights)})
+- Total data points collected: {len(weekly_data)}
+"""
+    
+    # Get latest camera status
+    latest_image = get_latest_camera_image()
+    camera_status = "No recent detection" if not latest_image else "Detection active"
+    
+    # Build the prompt for report generation
+    report_prompt = f"""
+You are writing a professional weekly health report for a plant in an EverGreen Box system.
+Plant: {plant_name}
+Camera Status: {camera_status}
+
+{sensor_summary}
+
+Write a brief, friendly weekly report (2-3 sentences) that:
+1. Describes how the plant fared this week
+2. Comments on the environmental conditions (good/acceptable/needs adjustment)
+3. Provides one recommendation
+
+Be concise and encouraging. Format: "This week, the {plant_name} [description]. [Environmental comment]. Recommendation: [one specific action]."
+
+If conditions were stable, say the plant is doing well.
+If there were fluctuations, mention them gently but optimistically.
+Only suggest specific changes if conditions were problematic.
+"""
+    
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[
+                {"role": "system", "content": "You are a plant health report writer for smart plant monitoring systems."},
+                {"role": "user", "content": report_prompt}
+            ],
+            temperature=0.7,
+            max_tokens=100
+        )
+        content = response.choices[0].message.content
+        return content.strip() if content else f"This week, the {plant_name} remained generally healthy. Environmental conditions were favorable. Recommendation: maintain the current monitoring schedule."
+    
+    except Exception as e:
+        print(f"Error generating weekly report: {e}")
+        return f"This week, the {plant_name} remained generally healthy. Environmental conditions were favorable. Recommendation: maintain the current monitoring schedule."
 
 #========== Java solution generation ==========
 def summarize_java_question(question_text: str):
