@@ -3,6 +3,13 @@ venv
 .venv/
 __pycache__/
 *.pyc
-.DS_Store.env
+.DS_Store
 *.db
 static/images/*.jpg
+static/images/*.jpeg
+static/videos/*.mp4
+timelapse_*.mp4
+temp_*.jpg
+*.log
+.idea/
+.vscode/
