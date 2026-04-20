@@ -172,6 +172,7 @@ def run_yolo_detection(frame, model_a, model_b):
     spot_detected_this_frame = False
     detected_plant_name = "Unknown"
     detected_health_status = "Unknown"
+    confidence_final = 0.0
     arduino_command = 'N'
     
     try:
@@ -215,18 +216,22 @@ def run_yolo_detection(frame, model_a, model_b):
                     
                     if health_name.upper() == 'UNHEALTHY':
                         spot_detected_this_frame = True
-                    
-                    detected_health_status = health_name
-                    
-                    # Update global YOLO result
-                    # Format: confidence is float 0-1 (e.g., 0.985)
-                    with yolo_result_lock:
-                        latest_yolo_result = {
-                            "plant": detected_plant_name,
-                            "health_status": detected_health_status,
-                            "confidence": round(confidence_b, 3),  # Keep as float 0-1
-                            "timestamp": datetime.now().isoformat()
-                        }
+                        detected_health_status = health_name  # Priority: UNHEALTHY
+                        confidence_final = confidence_b
+                    else:
+                        # Only update if we haven't found UNHEALTHY yet
+                        if detected_health_status == "Unknown":
+                            detected_health_status = health_name
+                            confidence_final = confidence_b
+                
+                # Update global YOLO result once per frame with final detected state
+                with yolo_result_lock:
+                    latest_yolo_result = {
+                        "plant": detected_plant_name,
+                        "health_status": detected_health_status,
+                        "confidence": round(confidence_final, 3),  # Keep as float 0-1
+                        "timestamp": datetime.now().isoformat()
+                    }
         
     except Exception as e:
         logger.error(f"YOLO detection error: {e}")
