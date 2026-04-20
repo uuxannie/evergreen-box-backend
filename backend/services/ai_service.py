@@ -22,7 +22,7 @@ def get_plant_type_from_yolo():
         pass
     return None
 
-def get_plant_specific_prompt(plant_type: str) -> str:
+def get_plant_specific_prompt(plant_type: str) -> dict:
     """Get plant-specific personality traits and care tips"""
     plant_prompts = {
         "pothos": {
@@ -108,7 +108,8 @@ If light is low, you may want more sunlight.
             temperature=0.7,
             max_tokens=80
         )
-        return response.choices[0].message.content.strip()
+        content = response.choices[0].message.content
+        return content.strip() if content else "🌱 I'm feeling a little disconnected right now, but I'm still here."
 
     except Exception:
         return "🌱 I'm feeling a little disconnected right now, but I'm still here."
@@ -164,7 +165,8 @@ Unclear / Assumptions:
             temperature=0.1,
             max_tokens=500
         )
-        return response.choices[0].message.content.strip()
+        content = response.choices[0].message.content
+        return content.strip() if content else "Sorry, I can't summarize the Java question right now."
 
     except Exception:
         return "Sorry, I can't summarize the Java question right now."
@@ -210,7 +212,8 @@ Output rules:
             temperature=0.2,
             max_tokens=900
         )
-        return response.choices[0].message.content.strip()
+        content = response.choices[0].message.content
+        return content.strip() if content else "Sorry, I can't generate the solution right now."
 
     except Exception:
-        return "Sorry, anbuzhonglie."
+        return "Sorry, I can't generate the solution right now."
