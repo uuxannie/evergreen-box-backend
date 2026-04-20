@@ -1,4 +1,6 @@
 .env
+.env.local
+webcam/
 venv
 .venv/
 __pycache__/
