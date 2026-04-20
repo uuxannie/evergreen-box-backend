@@ -245,9 +245,10 @@ async def get_latest_detection():
 
     except Exception as e:
         logger.error(f"[CAMERA] Failed to parse detection result: {str(e)}", exc_info=True)
+        logger.error(f"[CAMERA] Error type: {type(e).__name__}")
         raise HTTPException(
             status_code=500,
-            detail="Failed to retrieve detection results."
+            detail=f"Failed to retrieve detection results: {str(e)}"
         )
 
 @router.post("/generate-demo-video")
