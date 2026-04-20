@@ -1,6 +1,7 @@
 import os
 import shutil
 import glob
+import json
 import logging
 from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
@@ -61,7 +62,7 @@ async def upload_image(
 
         # Generate unique filename with millisecond precision to prevent collisions
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:19]
-        extension = file.filename.split(".")[-1] if "." in file.filename else "jpg"
+        extension = file.filename.split(".")[-1] if file.filename and "." in file.filename else "jpg"
         filename = f"{timestamp}.{extension}"
         file_path = os.path.join(UPLOAD_DIR, filename)
 
@@ -149,6 +150,97 @@ async def get_latest_image():
         raise HTTPException(
             status_code=500,
             detail="Failed to retrieve the latest image."
+        )
+
+@router.get("/detection")
+async def get_latest_detection():
+    """
+    Retrieve the latest camera image's parsed YOLO detection result.
+    Extracts plant type, confidence, and health status from stored YOLO result.
+    
+    Returns:
+    - status: 'success', 'empty', or error
+    - data: Parsed detection data
+        - plant_type: Detected plant species (e.g., "pothos")
+        - confidence: Detection confidence as percentage string (e.g., "95%")
+        - health_status: Plant health status (e.g., "Healthy", "Yellowing", "Rot Risk")
+        - disease_class: Disease classification if any (e.g., "Healthy", "Leaf Spot")
+        - recommendation: Care recommendation based on detection
+        - captured_at: When the image was captured
+    """
+    try:
+        image_data = get_latest_camera_image()
+        
+        if not image_data or not image_data.get("yolo_result"):
+            logger.warning("[CAMERA] No YOLO results found")
+            return {
+                "status": "empty",
+                "message": "No detection results available yet.",
+                "data": {
+                    "plant_type": "Unknown",
+                    "confidence": "0%",
+                    "health_status": "Monitoring...",
+                    "disease_class": "Unknown",
+                    "recommendation": "Waiting for first detection...",
+                    "captured_at": None
+                }
+            }
+        
+        # Parse YOLO result from JSON string
+        try:
+            yolo_data = json.loads(image_data["yolo_result"])
+        except (json.JSONDecodeError, TypeError):
+            logger.warning("[CAMERA] Invalid YOLO JSON format, returning defaults")
+            yolo_data = {}
+        
+        # Extract detection data with safe fallbacks
+        plant_type = yolo_data.get("plant", "Unknown")
+        confidence = yolo_data.get("confidence", 0)
+        disease_class = yolo_data.get("disease", "Healthy")
+        
+        # Convert confidence to percentage if it's a decimal
+        if isinstance(confidence, float) and confidence <= 1.0:
+            confidence_str = f"{int(confidence * 100)}%"
+        else:
+            confidence_str = f"{int(confidence)}%"
+        
+        # Map disease class to health status
+        health_status_map = {
+            "Healthy": "Healthy",
+            "Yellowing": "Warning",
+            "Dark-spot": "Alert",
+            "Rot Risk": "Alert",
+            "Leaf Spot": "Alert"
+        }
+        health_status = health_status_map.get(disease_class, "Monitoring")
+        
+        # Generate recommendation based on disease
+        recommendation_map = {
+            "Healthy": "No action needed",
+            "Yellowing": "Check watering conditions and adjust if needed",
+            "Dark-spot": "Reduce watering and improve ventilation",
+            "Rot Risk": "Reduce watering immediately and improve air circulation",
+            "Leaf Spot": "Isolate plant and reduce leaf moisture"
+        }
+        recommendation = recommendation_map.get(disease_class, "Continue monitoring")
+        
+        return {
+            "status": "success",
+            "data": {
+                "plant_type": plant_type.lower() if plant_type != "Unknown" else "Unknown",
+                "confidence": confidence_str,
+                "health_status": health_status,
+                "disease_class": disease_class,
+                "recommendation": recommendation,
+                "captured_at": image_data.get("captured_at")
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"[CAMERA] Failed to parse detection result: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to retrieve detection results."
         )
 
 @router.post("/generate-demo-video")

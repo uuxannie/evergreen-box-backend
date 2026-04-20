@@ -53,8 +53,8 @@ logger = logging.getLogger(__name__)
 # ================= Global Variables =================
 # YOLO detection results
 latest_yolo_result = {
-    "plant_name": "Unknown",
-    "health_status": "Unknown",
+    "plant": "Unknown",
+    "disease": "Healthy",
     "confidence": 0.0,
     "timestamp": None
 }
@@ -218,8 +218,8 @@ def run_yolo_detection(frame, model_a, model_b):
                     # Update global YOLO result
                     with yolo_result_lock:
                         latest_yolo_result = {
-                            "plant_name": detected_plant_name,
-                            "health_status": detected_health_status,
+                            "plant": detected_plant_name,
+                            "disease": detected_health_status,
                             "confidence": round(confidence_b, 3),
                             "timestamp": datetime.now().isoformat()
                         }
@@ -270,7 +270,7 @@ def upload_to_backend(current_frame):
             )
             
             if response.status_code == 200:
-                logger.info(f"Upload successful - {yolo_data['plant_name']} ({yolo_data['health_status']})")
+                logger.info(f"Upload successful - {yolo_data['plant']} ({yolo_data['disease']})")
             else:
                 logger.warning(f"Upload returned status code: {response.status_code}")
         
