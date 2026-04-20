@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 # Format: confidence is float 0-1 (e.g., 0.985), not percentage string
 latest_yolo_result = {
     "plant": "Unknown",
-    "disease": "Healthy",
+    "health_status": "Healthy",
     "confidence": 0.0,
     "timestamp": None
 }
@@ -221,7 +221,7 @@ def run_yolo_detection(frame, model_a, model_b):
                     with yolo_result_lock:
                         latest_yolo_result = {
                             "plant": detected_plant_name,
-                            "disease": detected_health_status,
+                            "health_status": detected_health_status,
                             "confidence": round(confidence_b, 3),  # Keep as float 0-1
                             "timestamp": datetime.now().isoformat()
                         }
@@ -286,6 +286,12 @@ def upload_to_backend(current_frame):
 # ================= Main Program =================
 def main():
     global upload_thread, should_exit, latest_yolo_result, ser
+    
+    # Initialize variables to prevent UnboundLocalError in finally block
+    cap = None
+    model_a = None
+    model_b = None
+    upload_thread = None
     
     logger.info("=" * 60)
     logger.info("EverGreen Box - M1 Plant Monitoring System")
@@ -410,8 +416,10 @@ def main():
             ser.close()
             logger.info("Arduino serial port closed")
         
-        cap.release()
-        cv2.destroyAllWindows()
+        # Safely release camera
+        if cap is not None:
+            cap.release()
+            cv2.destroyAllWindows()
         
         logger.info("Program closed safely")
         logger.info("=" * 60 + "\n")
