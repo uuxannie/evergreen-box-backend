@@ -162,9 +162,9 @@ async def get_latest_detection():
     - status: 'success', 'empty', or error
     - data: Parsed detection data
         - plant_type: Detected plant species (e.g., "pothos")
-        - confidence: Detection confidence as percentage string (e.g., "95%")
-        - health_status: Plant health status (e.g., "Healthy", "Yellowing", "Rot Risk")
-        - disease_class: Disease classification if any (e.g., "Healthy", "Leaf Spot")
+        - confidence: Detection confidence as float 0-1 (e.g., 0.95)
+        - health_status: Plant health status (e.g., "Healthy", "UNHEALTHY")
+        - disease_class: Disease classification (same as health_status)
         - recommendation: Care recommendation based on detection
         - captured_at: When the image was captured
     """
@@ -178,9 +178,9 @@ async def get_latest_detection():
                 "message": "No detection results available yet.",
                 "data": {
                     "plant_type": "Unknown",
-                    "confidence": "0%",
-                    "health_status": "Monitoring...",
-                    "disease_class": "Unknown",
+                    "confidence": 0.0,
+                    "health_status": "Healthy",
+                    "disease_class": "Healthy",
                     "recommendation": "Waiting for first detection...",
                     "captured_at": None
                 }
@@ -198,33 +198,22 @@ async def get_latest_detection():
         confidence = yolo_data.get("confidence", 0)
         health_status = yolo_data.get("health_status", "Healthy")
         
-        # Convert confidence to percentage string
-        # Expected format: float between 0-1 (e.g., 0.985)
-        # Fallback to handle legacy string formats
+        # Ensure confidence is float 0-1
         try:
             if isinstance(confidence, str):
-                # Remove % if present and convert to float
                 confidence_val = float(confidence.strip('%'))
-                # If value > 1, assume it's already a percentage (0-100)
-                if confidence_val > 1:
-                    confidence_str = f"{int(confidence_val)}%"
-                else:
-                    confidence_str = f"{int(confidence_val * 100)}%"
+                confidence = confidence_val / 100 if confidence_val > 1 else confidence_val
             else:
-                # Numeric value (should be 0-1 range)
-                confidence_val = float(confidence)
-                confidence_str = f"{int(confidence_val * 100)}%"
+                confidence = float(confidence)
         except (ValueError, TypeError):
-            confidence_str = "0%"
+            confidence = 0.0
+        
+        confidence = round(confidence, 3)
         
         # Map health status to recommendations
         recommendation_map = {
-            "Healthy": "No action needed",
-            "Unhealthy": "Plant needs attention - check watering and light conditions",
-            "Yellowing": "Check watering conditions and adjust if needed",
-            "Dark-spot": "Reduce watering and improve ventilation",
-            "Rot Risk": "Reduce watering immediately and improve air circulation",
-            "Leaf Spot": "Isolate plant and reduce leaf moisture"
+            "Healthy": "Continue monitoring",
+            "UNHEALTHY": "Please check your plant - unhealthy leaves detected"
         }
         recommendation = recommendation_map.get(health_status, "Continue monitoring")
         
@@ -232,7 +221,7 @@ async def get_latest_detection():
             "status": "success",
             "data": {
                 "plant_type": plant_type.lower() if plant_type != "Unknown" else "Unknown",
-                "confidence": confidence_str,
+                "confidence": confidence,  # Float 0-1
                 "health_status": health_status,
                 "disease_class": health_status,  # Keep for API compatibility
                 "recommendation": recommendation,
