@@ -52,6 +52,7 @@ logger = logging.getLogger(__name__)
 
 # ================= Global Variables =================
 # YOLO detection results
+# Format: confidence is float 0-1 (e.g., 0.985), not percentage string
 latest_yolo_result = {
     "plant": "Unknown",
     "disease": "Healthy",
@@ -216,11 +217,12 @@ def run_yolo_detection(frame, model_a, model_b):
                     detected_health_status = health_name
                     
                     # Update global YOLO result
+                    # Format: confidence is float 0-1 (e.g., 0.985)
                     with yolo_result_lock:
                         latest_yolo_result = {
                             "plant": detected_plant_name,
                             "disease": detected_health_status,
-                            "confidence": round(confidence_b, 3),
+                            "confidence": round(confidence_b, 3),  # Keep as float 0-1
                             "timestamp": datetime.now().isoformat()
                         }
         
