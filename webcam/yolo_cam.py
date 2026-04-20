@@ -10,13 +10,17 @@ import json
 import requests
 import logging
 import serial
+import os
 from datetime import datetime, date
 from collections import deque
+from dotenv import load_dotenv
 from ultralytics import YOLO
 from twilio.rest import Client
 
+load_dotenv()
+
 # ================= Configuration =================
-RENDER_BACKEND_URL = "https://evergreen-box-backend.onrender.com"
+RENDER_BACKEND_URL = os.getenv('RENDER_BACKEND_URL', "https://evergreen-box-backend.onrender.com")
 UPLOAD_INTERVAL_SECONDS = 15  # Upload interval in seconds
 UPLOAD_TIMEOUT_SECONDS = 5
 
@@ -29,10 +33,10 @@ MODEL_A_PATH = "cactus_pothos_succulent_training_150epoches.pt"  # Plant species
 MODEL_B_PATH = "health_best.pt"  # Plant health detection
 
 # ================= Twilio Configuration =================
-TWILIO_ACCOUNT_SID = 'REDACTED_TWILIO_SID'
-TWILIO_AUTH_TOKEN = 'REDACTED_TWILIO_TOKEN'
-TWILIO_WHATSAPP_NUMBER = 'whatsapp:+14155238886'
-YOUR_WHATSAPP_NUMBER = 'whatsapp:+85297050549'
+TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID', '')
+TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN', '')
+TWILIO_WHATSAPP_NUMBER = os.getenv('TWILIO_WHATSAPP_NUMBER', 'whatsapp:+14155238886')
+YOUR_WHATSAPP_NUMBER = os.getenv('YOUR_WHATSAPP_NUMBER', 'whatsapp:+85297050549')
 
 # ================= Arduino Serial Configuration =================
 SERIAL_PORT = '/dev/ttyUSB0'  # macOS: /dev/cu.usbserial-* or /dev/ttyUSB0

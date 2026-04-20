@@ -6,4 +6,3 @@ python-dotenv
 python-multipart
 apscheduler>=3.10.4
 opencv-python>=4.8.0
-sqlite3
