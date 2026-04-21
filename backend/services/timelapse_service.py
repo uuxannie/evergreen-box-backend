@@ -42,6 +42,84 @@ def get_storage_paths():
 
 IMAGE_DIR, VIDEO_DIR, STORAGE_TYPE = get_storage_paths()
 
+def clean_old_files(days_to_keep=30):
+    """
+    Clean up old image and video files older than specified days.
+    
+    Args:
+        days_to_keep (int): Number of days to retain files. Default is 30 days.
+    
+    Returns:
+        dict: {"deleted_images": N, "deleted_videos": M, "freed_space_mb": X.XX}
+    """
+    try:
+        import shutil
+        from datetime import timedelta
+        
+        current_time = time.time()
+        cutoff_time = current_time - (days_to_keep * 86400)  # Convert days to seconds
+        
+        deleted_images = 0
+        deleted_videos = 0
+        freed_space_mb = 0.0
+        
+        # Clean up old images
+        for img_path in glob.glob(os.path.join(IMAGE_DIR, "*.jpg")):
+            if os.path.getmtime(img_path) < cutoff_time:
+                try:
+                    file_size = os.path.getsize(img_path) / (1024 * 1024)
+                    os.remove(img_path)
+                    deleted_images += 1
+                    freed_space_mb += file_size
+                    logger.info(f"[CLEANUP] Deleted old image: {os.path.basename(img_path)}")
+                except OSError as e:
+                    logger.warning(f"[CLEANUP] Failed to delete {img_path}: {e}")
+        
+        for img_path in glob.glob(os.path.join(IMAGE_DIR, "*.jpeg")):
+            if os.path.getmtime(img_path) < cutoff_time:
+                try:
+                    file_size = os.path.getsize(img_path) / (1024 * 1024)
+                    os.remove(img_path)
+                    deleted_images += 1
+                    freed_space_mb += file_size
+                    logger.info(f"[CLEANUP] Deleted old image: {os.path.basename(img_path)}")
+                except OSError as e:
+                    logger.warning(f"[CLEANUP] Failed to delete {img_path}: {e}")
+        
+        # Clean up old videos
+        for vid_path in glob.glob(os.path.join(VIDEO_DIR, "*.mp4")):
+            if os.path.getmtime(vid_path) < cutoff_time:
+                try:
+                    file_size = os.path.getsize(vid_path) / (1024 * 1024)
+                    os.remove(vid_path)
+                    deleted_videos += 1
+                    freed_space_mb += file_size
+                    logger.info(f"[CLEANUP] Deleted old video: {os.path.basename(vid_path)}")
+                except OSError as e:
+                    logger.warning(f"[CLEANUP] Failed to delete {vid_path}: {e}")
+        
+        result = {
+            "deleted_images": deleted_images,
+            "deleted_videos": deleted_videos,
+            "freed_space_mb": round(freed_space_mb, 2)
+        }
+        
+        logger.info(
+            f"[CLEANUP] Cleanup complete: {deleted_images} images, {deleted_videos} videos deleted, "
+            f"{freed_space_mb:.2f} MB freed"
+        )
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"[CLEANUP] Error during cleanup: {e}", exc_info=True)
+        return {
+            "deleted_images": 0,
+            "deleted_videos": 0,
+            "freed_space_mb": 0.0,
+            "error": str(e)
+        }
+
 def enforce_image_cap():
     """
     Enforce hard cap on image count (500 images max).
@@ -79,16 +157,33 @@ def enforce_image_cap():
     except Exception as e:
         logger.error(f"[CAP_ENFORCEMENT] Error enforcing image cap: {e}", exc_info=True)
 
-def generate_timelapse_video():
+def generate_timelapse_video(use_existing_data=False, hours_back=24):
     """
-    Generate an MP4 timelapse video from all available images in the directory.
+    Generate an MP4 timelapse video from available images in the directory.
     
-    For demo mode, this reads all currently stored images (capped at 500) from the
-    USB webcam capture, sorts them chronologically, and compiles them into an H.264 MP4 (30 FPS).
+    For demo mode, this reads stored images (capped at 500) from the USB webcam capture,
+    sorts them chronologically, and compiles them into an H.264 MP4 (30 FPS).
+    
+    Args:
+        use_existing_data (bool): If False (default), only use recent images (within hours_back).
+                                 If True, use all available historical images.
+        hours_back (int): Number of hours to look back for "new" data. Default is 24 hours.
     
     Returns:
-        dict: {"success": True, "video_path": "...", "frame_count": N} or 
-              {"success": False, "error": "..."}
+        dict: {
+            "success": True,
+            "video_path": "...",
+            "video_url": "...",
+            "frame_count": N,
+            "skipped_frames": M,
+            "file_size_mb": X.XX,
+            "data_source": "new" or "existing"
+        } or
+        {
+            "success": False,
+            "error": "...",
+            "data_source": None
+        }
     """
     try:
         # Collect all image files
@@ -97,17 +192,53 @@ def generate_timelapse_video():
         
         if not all_images:
             logger.warning("[TIMELAPSE] No images found in IMAGE_DIR.")
-            return {"success": False, "error": "No images available"}
+            return {
+                "success": False,
+                "error": "No image frames available (new or existing)",
+                "data_source": None
+            }
+        
+        # Filter images based on use_existing_data flag
+        if not use_existing_data:
+            # Only use recent images (within hours_back hours)
+            current_time = time.time()
+            cutoff_time = current_time - (hours_back * 3600)
+            
+            recent_images = [
+                img for img in all_images
+                if os.path.getmtime(img) >= cutoff_time
+            ]
+            
+            if not recent_images:
+                logger.warning(f"[TIMELAPSE] No images found within last {hours_back} hours.")
+                return {
+                    "success": False,
+                    "error": f"No new frames available (last {hours_back} hours)",
+                    "data_source": None
+                }
+            
+            selected_images = recent_images
+            data_source = "new"
+            logger.info(f"[TIMELAPSE] Using NEW frames: {len(selected_images)} images from last {hours_back} hours")
+        else:
+            # Use all available images
+            selected_images = all_images
+            data_source = "existing"
+            logger.info(f"[TIMELAPSE] Using EXISTING frames: {len(selected_images)} total images from history")
         
         # Sort images chronologically by filename (timestamp-based naming)
-        all_images.sort()
-        logger.info(f"[TIMELAPSE] Found {len(all_images)} images for video generation.")
+        selected_images.sort()
+        logger.info(f"[TIMELAPSE] Found {len(selected_images)} images for video generation.")
         
         # Read the first image to determine dimensions
-        first_frame = cv2.imread(all_images[0])
+        first_frame = cv2.imread(selected_images[0])
         if first_frame is None:
-            logger.error(f"[TIMELAPSE] Failed to read first image: {all_images[0]}")
-            return {"success": False, "error": "Cannot read first image"}
+            logger.error(f"[TIMELAPSE] Failed to read first image: {selected_images[0]}")
+            return {
+                "success": False,
+                "error": "Cannot read first image",
+                "data_source": data_source
+            }
         
         height, width = first_frame.shape[:2]
         size = (width, height)
@@ -118,20 +249,24 @@ def generate_timelapse_video():
         output_path = os.path.join(VIDEO_DIR, f"timelapse_{timestamp}.mp4")
         
         # Initialize VideoWriter with H.264 codec
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # type: ignore[attr-defined]
         fps = 30.0
         
         out = cv2.VideoWriter(output_path, fourcc, fps, size)
         
         if not out.isOpened():
             logger.error("[TIMELAPSE] VideoWriter failed to open.")
-            return {"success": False, "error": "VideoWriter initialization failed"}
+            return {
+                "success": False,
+                "error": "VideoWriter initialization failed",
+                "data_source": data_source
+            }
         
         # Write frames to video
         frame_count = 0
         failed_frames = 0
         
-        for img_path in all_images:
+        for img_path in selected_images:
             try:
                 frame = cv2.imread(img_path)
                 if frame is None:
@@ -156,11 +291,15 @@ def generate_timelapse_video():
         if frame_count == 0:
             logger.error("[TIMELAPSE] No frames were successfully written to video.")
             os.remove(output_path)
-            return {"success": False, "error": "No valid frames to write"}
+            return {
+                "success": False,
+                "error": "No valid frames to write",
+                "data_source": data_source
+            }
         
         file_size_mb = os.path.getsize(output_path) / (1024 * 1024)
         logger.info(
-            f"[TIMELAPSE] Video generated successfully: {output_path} "
+            f"[TIMELAPSE] Video generated successfully ({data_source} data): {output_path} "
             f"({frame_count} frames, {failed_frames} skipped, {file_size_mb:.2f} MB)"
         )
         
@@ -170,8 +309,10 @@ def generate_timelapse_video():
             "video_url": f"/static/videos/{os.path.basename(output_path)}",
             "frame_count": frame_count,
             "skipped_frames": failed_frames,
-            "file_size_mb": round(file_size_mb, 2)
+            "file_size_mb": round(file_size_mb, 2),
+            "data_source": data_source
         }
+
         
     except Exception as e:
         logger.error(f"[TIMELAPSE] Error during video generation: {e}", exc_info=True)

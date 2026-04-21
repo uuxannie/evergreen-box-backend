@@ -4,7 +4,7 @@ import glob
 import json
 import logging
 from datetime import datetime
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Request
 from backend.db.database import save_camera_image, get_latest_camera_image
 from backend.services.timelapse_service import enforce_image_cap, generate_timelapse_video
 
@@ -241,34 +241,77 @@ async def get_latest_detection():
         )
 
 @router.post("/generate-demo-video")
-async def generate_demo_video():
+async def generate_demo_video(request: Request):
     """
-    Manually trigger timelapse video generation from all available images captured by USB webcam.
+    Manually trigger timelapse video generation from available images captured by USB webcam.
     For demo mode, compiles all images (capped at 500) into a 30 FPS MP4.
     
+    Request body (JSON):
+    {
+        "use_existing_data": false  // Optional, default false
+    }
+    
     Returns:
-    - success: Boolean indicating whether generation succeeded
-    - video_path: Full path to the generated video file
-    - video_url: Relative URL to access the video via /static/videos
-    - frame_count: Number of frames compiled into the video
-    - skipped_frames: Number of images that could not be read
-    - file_size_mb: Size of the generated video in megabytes
-    - error: Error message if generation failed
+    {
+        "success": true,
+        "video_url": "/static/videos/timelapse_2026-04-21_120000.mp4",
+        "frame_count": 48,
+        "file_size_mb": 15.2,
+        "skipped_frames": 5,
+        "data_source": "new" or "existing"
+    }
+    
+    or on error:
+    {
+        "success": false,
+        "error": "No image frames available (new or existing)",
+        "data_source": null
+    }
     """
     try:
-        logger.info("[CAMERA] Demo video generation requested...")
-        result = generate_timelapse_video()
+        # Parse request body
+        try:
+            body = await request.json()
+        except:
+            body = {}
+        
+        use_existing_data = body.get("use_existing_data", False)
+        
+        logger.info(
+            f"[CAMERA] Demo video generation requested... "
+            f"(use_existing_data={use_existing_data})"
+        )
+        
+        result = generate_timelapse_video(use_existing_data=use_existing_data)
         
         if result["success"]:
-            logger.info(f"[CAMERA] Demo video generated successfully: {result['video_path']}")
-            return result
+            logger.info(
+                f"[CAMERA] Demo video generated successfully ({result['data_source']} data): "
+                f"{result['video_path']}"
+            )
+            return {
+                "success": True,
+                "video_url": result["video_url"],
+                "frame_count": result["frame_count"],
+                "file_size_mb": result["file_size_mb"],
+                "skipped_frames": result["skipped_frames"],
+                "data_source": result["data_source"]
+            }
         else:
-            logger.warning(f"[CAMERA] Demo video generation failed: {result['error']}")
-            return result
+            logger.warning(
+                f"[CAMERA] Demo video generation failed: {result['error']} "
+                f"(use_existing_data={use_existing_data})"
+            )
+            return {
+                "success": False,
+                "error": result["error"],
+                "data_source": result.get("data_source")
+            }
             
     except Exception as e:
         logger.error(f"[CAMERA] Error during video generation: {str(e)}", exc_info=True)
         return {
             "success": False,
-            "error": f"Video generation failed: {str(e)}"
+            "error": f"Video generation failed: {str(e)}",
+            "data_source": None
         }
