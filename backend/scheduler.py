@@ -2,6 +2,7 @@ import logging
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from backend.services.timelapse_service import clean_old_files, generate_timelapse_video
+from backend.db.database import reset_daily_device_counts
 
 # Configure logging
 logging.basicConfig(
@@ -23,7 +24,17 @@ def init_scheduler():
     try:
         scheduler = BackgroundScheduler()
         
-        # Task 1: Cleanup old files daily at 3:00 AM
+        # Task 1: Reset daily device counts at midnight (00:00)
+        scheduler.add_job(
+            func=reset_device_counts_task,
+            trigger=CronTrigger(hour=0, minute=0),
+            id="reset_device_counts_task",
+            name="Daily device count reset",
+            replace_existing=True,
+            max_instances=1
+        )
+        
+        # Task 2: Cleanup old files daily at 3:00 AM
         scheduler.add_job(
             func=cleanup_task,
             trigger=CronTrigger(hour=3, minute=0),
@@ -33,7 +44,7 @@ def init_scheduler():
             max_instances=1
         )
         
-        # Task 2: Generate timelapse video daily at 4:00 AM (after cleanup)
+        # Task 3: Generate timelapse video daily at 4:00 AM (after cleanup)
         scheduler.add_job(
             func=timelapse_task,
             trigger=CronTrigger(hour=4, minute=0),
@@ -44,7 +55,8 @@ def init_scheduler():
         )
         
         scheduler.start()
-        logger.info("[SCHEDULER] Background scheduler initialized with 2 scheduled tasks")
+        logger.info("[SCHEDULER] Background scheduler initialized with 3 scheduled tasks")
+        logger.info("[SCHEDULER] - Device count reset task: Daily at 00:00 AM")
         logger.info("[SCHEDULER] - Cleanup task: Daily at 03:00 AM")
         logger.info("[SCHEDULER] - Timelapse task: Daily at 04:00 AM")
         
@@ -76,6 +88,18 @@ def cleanup_task():
         logger.info(f"[SCHEDULER] Cleanup task completed: {result}")
     except Exception as e:
         logger.error(f"[SCHEDULER] Cleanup task failed: {e}", exc_info=True)
+
+def reset_device_counts_task():
+    """
+    Wrapper for device count reset task to be executed by scheduler.
+    Runs daily at midnight (00:00) to clear the previous day's counts.
+    """
+    try:
+        logger.info("[SCHEDULER] Running device count reset task...")
+        result = reset_daily_device_counts()
+        logger.info(f"[SCHEDULER] Device count reset task completed: {result}")
+    except Exception as e:
+        logger.error(f"[SCHEDULER] Device count reset task failed: {e}", exc_info=True)
 
 def timelapse_task():
     """

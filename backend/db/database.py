@@ -312,3 +312,28 @@ def get_state_from_db() -> dict:
     except sqlite3.Error as e:
         print(f"Database error while retrieving state: {e}")
         return {}
+
+def reset_daily_device_counts():
+    """
+    Reset daily device action counts by deleting all logs before today.
+    Called automatically every day at 00:00 to clear yesterday's counts.
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            today_str = date.today().strftime("%Y-%m-%d")
+            
+            # Delete all logs before today
+            cursor.execute('''
+                DELETE FROM device_logs 
+                WHERE timestamp < ?
+            ''', (f"{today_str} 00:00:00",))
+            
+            deleted_count = cursor.rowcount
+            conn.commit()
+            
+            print(f"[DEVICE LOGS] Daily reset completed. Deleted {deleted_count} records from previous days.")
+            return {"status": "success", "deleted_count": deleted_count}
+    except sqlite3.Error as e:
+        print(f"Database error while resetting daily counts: {e}")
+        raise

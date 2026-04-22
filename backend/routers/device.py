@@ -103,6 +103,7 @@ async def device_stats() -> DeviceStatsResponse:
 async def set_device_state(command: DeviceCommand) -> CommandResponse:
     """
     Set the state of a device. This updates the mailbox for ESP8266 to read.
+    Also automatically logs the action when turning on (for statistics counting).
     
     Args:
         command: Device target (water_pump/fan/grow_light) and desired action (on/off)
@@ -115,6 +116,11 @@ async def set_device_state(command: DeviceCommand) -> CommandResponse:
     """
     try:
         update_state_in_db(command.target, command.action)
+        
+        # Automatically log the action when turning on (for statistics)
+        if command.action == "on":
+            log_device_action(command.target, command.action)
+            
     except ValueError as e:
         print(f"[VALIDATION ERROR] Invalid input: {e}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
