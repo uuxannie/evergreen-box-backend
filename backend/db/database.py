@@ -2,6 +2,7 @@ import sqlite3
 import os
 from datetime import datetime, date
 from contextlib import contextmanager
+from typing import Optional
 
 RENDER_DISK_BASE = "/var/lib/data"
 
@@ -248,7 +249,7 @@ def get_today_device_stats() -> dict:
         print(f"Database error: {e}")
         return {"water_pump": 0, "fan": 0, "grow_light": 0}
 
-def save_camera_image(image_url: str, storage_type: str = "local", yolo_result: str = None):
+def save_camera_image(image_url: str, storage_type: str = "local", yolo_result: Optional[str] = None):
     """Saves a new camera image record with validation and transaction support"""
     if not image_url or len(image_url.strip()) == 0:
         raise ValueError("image_url cannot be empty")
